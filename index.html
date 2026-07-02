@@ -126,9 +126,13 @@
   </div>
 </div>
 
-<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<script type="importmap">{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }</script>
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ================= CONFIG ================= */
 const DB = 'https://ziyokor-qabul-default-rtdb.firebaseio.com';
@@ -297,8 +301,9 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x9fd0f2, 60, 180);
 const camera = new THREE.PerspectiveCamera(55, 1, .1, 500);
 
-scene.add(new THREE.AmbientLight(0xffffff, .75));
-const sun = new THREE.DirectionalLight(0xfff3d6, 1.4);
+scene.add(new THREE.AmbientLight(0xffffff, .45));
+scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x7a5a3a, .8));
+const sun = new THREE.DirectionalLight(0xfff3d6, 1.5);
 sun.position.set(20, 40, 20);
 scene.add(sun);
 
@@ -309,6 +314,8 @@ const tl = new THREE.TextureLoader(lm);
 const toLoad = {
   sky:'assets/final/sky.jpg', grass:'assets/final/grass.jpg', stone:'assets/final/stone.jpg',
   wood:'assets/final/wood.jpg', hero:'assets/final/hero.png',
+  tree:'assets/final/tree.png', bush:'assets/final/bush.png',
+  flower:'assets/final/flower.png', cloud:'assets/final/cloud.png',
 };
 let loaded=0; const total=Object.keys(toLoad).length;
 lm.onProgress = ()=>{ loaded++; document.getElementById('barIn').style.width = (loaded/total*100)+'%'; };
@@ -345,40 +352,192 @@ const matGrass = new THREE.MeshLambertMaterial({ map:TX.grass });
 const matStone = new THREE.MeshLambertMaterial({ map:TX.stone });
 const matWood  = new THREE.MeshLambertMaterial({ map:TX.wood });
 
+const spinners = [];   // {obj, speed}
+const floaters = [];   // {obj, y0, amp, sp, ph}
+const clouds = [];
+
+function jitterGeo(geo, amt){
+  const pos = geo.attributes.position;
+  for (let i=0;i<pos.count;i++){
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    const n = Math.sin(x*2.7+z*1.9)*Math.cos(z*2.3+x*1.1);
+    pos.setXYZ(i, x+n*amt, y, z+n*amt*.7);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+function billboard(tex, w, h, x, y, z){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false }));
+  s.scale.set(w,h,1); s.center.set(.5,0); s.position.set(x,y,z);
+  scene.add(s); return s;
+}
+function safeSpot(c, minR, maxR){
+  // random spot on island, kept off the central path corridor
+  for (let k=0;k<12;k++){
+    const a=Math.random()*Math.PI*2, rr=minR+Math.random()*(maxR-minR);
+    const x=c.x+Math.cos(a)*rr, z=c.z+Math.sin(a)*rr;
+    if (Math.abs(x-c.x) > 2.6) return [x,z];
+  }
+  return [c.x+3.2, c.z+2];
+}
+
+const CANDY = [0xff6b6b, 0xffd43b, 0x4dabf7, 0xcc5de8, 0x51cf66, 0xff922b];
+
+function decorate(i, c){
+  if (i===0){ // Amallar: uchayotgan katta amal belgilari
+    const syms = [
+      ()=>{ const g=new THREE.Group(); // +
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(1.5,.45,.45)));
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(.45,1.5,.45))); return g; },
+      ()=>{ const g=new THREE.Group(); // −
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(1.5,.45,.45))); return g; },
+      ()=>{ const g=new THREE.Group(); // ×
+        const a=new THREE.Mesh(new THREE.BoxGeometry(1.6,.42,.42)); a.rotation.z=Math.PI/4;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(1.6,.42,.42)); b.rotation.z=-Math.PI/4;
+        g.add(a); g.add(b); return g; },
+    ];
+    syms.forEach((make,k)=>{
+      const col = CANDY[k*2%CANDY.length];
+      const mat = new THREE.MeshPhongMaterial({ color:col, emissive:col, emissiveIntensity:.25, shininess:80 });
+      const g = make();
+      g.traverse(o=>{ if(o.isMesh) o.material=mat; });
+      const [x,z] = safeSpot(c, R*.45, R*.7);
+      g.position.set(x, 2.6+k*.4, z);
+      scene.add(g);
+      spinners.push({obj:g, speed:.6+k*.25});
+      floaters.push({obj:g, y0:g.position.y, amp:.35, sp:1.2+k*.3, ph:k*2});
+    });
+  }
+  if (i===1){ // Geometriya: kristallar
+    const geos=[new THREE.OctahedronGeometry(.9), new THREE.TetrahedronGeometry(1), new THREE.IcosahedronGeometry(.8), new THREE.ConeGeometry(.7,1.6,5)];
+    geos.forEach((geo,k)=>{
+      const col = CANDY[k%CANDY.length];
+      const m = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color:col, emissive:col, emissiveIntensity:.35, transparent:true, opacity:.88, shininess:120 }));
+      const [x,z] = safeSpot(c, R*.4, R*.75);
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(.55,.75,.6,8), matStone);
+      ped.position.set(x,.3,z); scene.add(ped);
+      m.position.set(x, 1.6, z); m.scale.y=1.4;
+      scene.add(m);
+      spinners.push({obj:m, speed:.5+k*.2});
+      floaters.push({obj:m, y0:1.6, amp:.2, sp:1+k*.4, ph:k});
+    });
+  }
+  if (i===2){ // Ulushlar: pirog diagrammasi + porlab turgan bo'lak
+    const [x,z] = safeSpot(c, R*.4, R*.6);
+    const parts=4;
+    for (let k=0;k<parts;k++){
+      const slice = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.7,1.7,.55,24,1,false, k*Math.PI*2/parts, Math.PI*2/parts),
+        new THREE.MeshPhongMaterial({ color:CANDY[k%CANDY.length], shininess:60 }));
+      slice.position.set(x,.3,z);
+      if (k===0){ // ajralgan bo'lak — yulduzday porlaydi
+        const a=Math.PI/parts;
+        slice.position.set(x+Math.cos(a)*1.1, .8, z+Math.sin(a)*1.1);
+        slice.material.emissive.set(CANDY[0]); slice.material.emissiveIntensity=.4;
+        floaters.push({obj:slice, y0:.8, amp:.3, sp:1.6, ph:0});
+      }
+      scene.add(slice);
+    }
+  }
+  if (i===3){ // Masalalar: uychalar + soat ustuni
+    for (let k=0;k<2;k++){
+      const [x,z] = safeSpot(c, R*.4, R*.7);
+      const hg = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.7,1.3,1.5),
+        new THREE.MeshLambertMaterial({ color:pick([0xfff3bf,0xd0ebff,0xffe8cc]) }));
+      body.position.y=.65; hg.add(body);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5,1.1,4),
+        new THREE.MeshLambertMaterial({ color:pick([0xe03131,0xe8590c]) }));
+      roof.position.y=1.85; roof.rotation.y=Math.PI/4; hg.add(roof);
+      const win = new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.06), new THREE.MeshBasicMaterial({ color:0xffe066 }));
+      win.position.set(.35,.75,.78); hg.add(win);
+      const door = new THREE.Mesh(new THREE.BoxGeometry(.45,.75,.06), new THREE.MeshLambertMaterial({ color:0x795548 }));
+      door.position.set(-.35,.38,.78); hg.add(door);
+      hg.position.set(x,0,z); hg.rotation.y=Math.random()*Math.PI*2;
+      scene.add(hg);
+    }
+    // soat ustuni
+    const [x,z] = safeSpot(c, R*.35, R*.55);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.12,.16,3,8), matWood);
+    pole.position.set(x,1.5,z); scene.add(pole);
+    const cv=document.createElement('canvas'); cv.width=cv.height=128;
+    const cx=cv.getContext('2d');
+    cx.fillStyle='#fff'; cx.beginPath(); cx.arc(64,64,60,0,7); cx.fill();
+    cx.strokeStyle='#1a5fb4'; cx.lineWidth=8; cx.stroke();
+    cx.lineWidth=7; cx.beginPath(); cx.moveTo(64,64); cx.lineTo(64,26); cx.stroke();
+    cx.beginPath(); cx.moveTo(64,64); cx.lineTo(92,72); cx.stroke();
+    const face = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv) }));
+    face.scale.set(1.5,1.5,1); face.position.set(x,3.4,z); scene.add(face);
+  }
+  if (i===4){ // Final: minora atrofida uchayotgan kitoblar
+    for (let k=0;k<5;k++){
+      const book = new THREE.Mesh(new THREE.BoxGeometry(.7,.12,.5),
+        new THREE.MeshLambertMaterial({ color:CANDY[k%CANDY.length] }));
+      book.userData.orbit = { r:4.2+k*.35, sp:.5+k*.13, ph:k*1.3, y:6+k*1.7, cx:c.x, cz:c.z-2 };
+      scene.add(book);
+      spinners.push({obj:book, speed:1});
+      floaters.push({obj:book, y0:book.userData.orbit.y, amp:.25, sp:1+k*.2, ph:k});
+    }
+  }
+}
+
 function makeIsland(c, i){
   const g = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(R, R+1, 3, 24), matStone);
-  top.position.y = -1.5; g.add(top);
-  const grass = new THREE.Mesh(new THREE.CircleGeometry(R, 24), matGrass);
-  grass.rotation.x = -Math.PI/2; grass.position.y = .01; g.add(grass);
-  const root = new THREE.Mesh(new THREE.CylinderGeometry(R-1, 1.2, 9, 12), matStone);
-  root.position.y = -7.5; g.add(root);
-  // trees
-  const nTree = i===4 ? 2 : ri(2,4);
-  for (let t=0;t<nTree;t++){
-    const a = Math.random()*Math.PI*2, rr = R*0.55 + Math.random()*R*0.3;
-    const tg = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.25,.35,1.6,8), matWood);
-    trunk.position.y=.8; tg.add(trunk);
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.2,2.6,10),
-      new THREE.MeshLambertMaterial({ color: pick([0x2f9e44,0x37b24d,0x40c057]) }));
-    leaf.position.y=2.6; tg.add(leaf);
-    tg.position.set(c.x+Math.cos(a)*rr, 0, c.z+Math.sin(a)*rr);
-    // keep path clear
-    if (Math.abs(tg.position.x-c.x) < 2.5) tg.position.x += 3;
-    scene.add(tg);
-  }
-  // rocks
-  for (let t=0;t<2;t++){
-    const a=Math.random()*Math.PI*2, rr=R*.7;
-    const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.6+Math.random()*.5), matStone);
-    rock.position.set(c.x+Math.cos(a)*rr, .4, c.z+Math.sin(a)*rr);
-    scene.add(rock);
-  }
+  // o't qoplamali ustki qatlam — chetlari notekis
+  const capGeo = jitterGeo(new THREE.CylinderGeometry(R+.9, R+.3, 1.2, 28, 1), .45);
+  const cap = new THREE.Mesh(capGeo, [
+    new THREE.MeshLambertMaterial({ map:TX.grass, color:0x9ade7a }),
+    matGrass, matStone,
+  ]);
+  cap.position.y = -.6; g.add(cap);
+  // tosh tag qismi — organik yarim shar
+  const rockGeo = jitterGeo(new THREE.SphereGeometry(R+.2, 24, 12, 0, Math.PI*2, Math.PI/2, Math.PI/2), .85);
+  const rock = new THREE.Mesh(rockGeo, matStone);
+  rock.scale.y = 1.5; rock.position.y = -1.1;
+  g.add(rock);
   g.position.copy(c);
   scene.add(g);
+
+  // billboard o'simliklar (Higgsfield art)
+  const nTree = i===4 ? 1 : 2;
+  for (let t=0;t<nTree;t++){
+    const [x,z] = safeSpot(c, R*.55, R*.8);
+    billboard(TX.tree, 3.6, 5.2, x, 0, z);
+  }
+  for (let t=0;t<2;t++){
+    const [x,z] = safeSpot(c, R*.45, R*.85);
+    billboard(TX.bush, 1.9, 1.5, x, 0, z);
+  }
+  for (let t=0;t<3;t++){
+    const [x,z] = safeSpot(c, R*.3, R*.9);
+    billboard(TX.flower, 1.1, .8, x, 0, z);
+  }
+  // orol atrofida suzuvchi mayda toshlar
+  for (let t=0;t<3;t++){
+    const a=Math.random()*Math.PI*2, rr=R+2.5+Math.random()*3;
+    const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(.4+Math.random()*.5), matStone);
+    const y0 = -2-Math.random()*4;
+    rk.position.set(c.x+Math.cos(a)*rr, y0, c.z+Math.sin(a)*rr);
+    rk.rotation.set(Math.random()*3, Math.random()*3, 0);
+    scene.add(rk);
+    floaters.push({obj:rk, y0, amp:.5+Math.random()*.4, sp:.5+Math.random()*.6, ph:Math.random()*6});
+    spinners.push({obj:rk, speed:.15+Math.random()*.2});
+  }
+  decorate(i, c);
 }
 P.forEach((c,i)=>makeIsland(c,i));
+
+/* osmondagi bulutlar (Higgsfield art) */
+for (let k=0;k<9;k++){
+  const a = Math.random()*Math.PI*2;
+  const rr = 35+Math.random()*55;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.cloud, transparent:true, opacity:.9, depthWrite:false }));
+  const w = 10+Math.random()*14;
+  s.scale.set(w, w*.55, 1);
+  s.position.set(Math.cos(a)*rr, 6+Math.random()*22, -GAP*2+Math.sin(a)*rr);
+  s.userData.drift = (Math.random()-.5)*.6;
+  scene.add(s); clouds.push(s);
+}
 
 /* final tower on island 5 */
 {
@@ -447,12 +606,31 @@ for (let i=0;i<4;i++){
   bridges.push(planks);
 }
 
-/* player sprite */
-const hero = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.hero, transparent:true }));
-hero.scale.set(3.2, 4.2, 1);
-hero.position.set(P[0].x, 2.05, P[0].z + 2);
+/* player — Higgsfield image_to_3d modeli (yuklanguncha sprite) */
+const hero = new THREE.Group();
+hero.position.set(P[0].x, 0, P[0].z + 2);
 scene.add(hero);
-hero.material.rotation = 0;
+let heroSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.hero, transparent:true }));
+heroSprite.scale.set(3.2, 4.2, 1); heroSprite.position.y = 2.05;
+hero.add(heroSprite);
+let heroBody=null, mixer=null, actCombo=null;
+new GLTFLoader().load('assets/final/hero.glb', gltf=>{
+  heroBody = gltf.scene;
+  const box = new THREE.Box3().setFromObject(heroBody);
+  const size = box.getSize(new THREE.Vector3());
+  heroBody.scale.setScalar(3.4/(size.y||1));
+  box.setFromObject(heroBody);
+  heroBody.position.y = -box.min.y;
+  heroBody.userData.y0 = heroBody.position.y;
+  hero.add(heroBody);
+  if (heroSprite){ hero.remove(heroSprite); heroSprite=null; }
+  if (gltf.animations.length){
+    mixer = new THREE.AnimationMixer(heroBody);
+    actCombo = mixer.clipAction(gltf.animations[0]);
+    actCombo.setLoop(THREE.LoopOnce);
+  }
+}, undefined, ()=>{/* sprite qoladi */});
+function heroCheer(){ if (actCombo){ actCombo.reset().play(); } }
 
 /* confetti */
 let confetti = null;
@@ -477,8 +655,8 @@ function startConfetti(){
 
 /* camera */
 function camTarget(){
-  return { pos: new THREE.Vector3(hero.position.x, hero.position.y+7.5, hero.position.z+12),
-           look: new THREE.Vector3(hero.position.x, hero.position.y+1, hero.position.z-4) };
+  return { pos: new THREE.Vector3(hero.position.x, hero.position.y+8.5, hero.position.z+12.5),
+           look: new THREE.Vector3(hero.position.x, hero.position.y+2.5, hero.position.z-4) };
 }
 { const t=camTarget(); camera.position.copy(t.pos); }
 
@@ -540,6 +718,7 @@ function finalQuiz(){
 function finish(){
   S.phase='final';
   say('final');
+  heroCheer();
   startConfetti();
   const dt = Math.round((Date.now()-S.t0)/1000);
   const mm=Math.floor(dt/60), ss=dt%60;
@@ -582,6 +761,7 @@ function answer(btn, ok){
     $('hudStars').textContent = `⭐ ${S.stars}`;
     sfxStar();
     say(Math.random()<.5?'barakalla':'ajoyib');
+    heroCheer();
     toast(`+${got} ⭐`);
     setTimeout(nextQ, 900);
   } else {
@@ -682,12 +862,20 @@ function tick(){
     const dist=d.length();
     if (dist<.2){ walkQueue.shift(); if(!walkQueue.length){ const f=walkDone; walkDone=null; f&&f(); } }
     else {
+      hero.rotation.y = Math.atan2(d.x, d.z);
       d.normalize().multiplyScalar(Math.min(6*dt, dist));
       p.add(d);
       bob+=dt*10;
-      p.y=2.05+Math.abs(Math.sin(bob))*.25;
+      if (heroSprite) heroSprite.position.y = 2.05 + Math.abs(Math.sin(bob))*.25;
+      else if (heroBody){
+        heroBody.position.y = heroBody.userData.y0 + Math.abs(Math.sin(bob))*.14;
+        heroBody.rotation.z = Math.sin(bob)*.05;
+      }
     }
+  } else if (heroBody){
+    heroBody.rotation.z *= .9;
   }
+  if (mixer) mixer.update(dt);
   // plank drop animation
   for (const planks of bridges) for (const pl of planks){
     if (pl.userData.drop){
@@ -700,6 +888,22 @@ function tick(){
   // gate signs pulse
   const t=clock.elapsedTime;
   gates.forEach(g=>{ if(g.sign.visible) g.sign.scale.setScalar(1.5+Math.sin(t*3)*.15); });
+  // bezaklar: aylanish, suzish, orbit
+  for (const s of spinners) s.obj.rotation.y += s.speed*dt;
+  for (const f of floaters){
+    f.obj.position.y = f.y0 + Math.sin(t*f.sp+f.ph)*f.amp;
+    const ob=f.obj.userData.orbit;
+    if (ob){
+      f.obj.position.x = ob.cx + Math.cos(t*ob.sp+ob.ph)*ob.r;
+      f.obj.position.z = ob.cz + Math.sin(t*ob.sp+ob.ph)*ob.r;
+    }
+  }
+  // bulutlar oqishi
+  for (const cl of clouds){
+    cl.position.x += cl.userData.drift*dt;
+    if (cl.position.x > 95) cl.position.x = -95;
+    if (cl.position.x < -95) cl.position.x = 95;
+  }
   // confetti
   if (confetti) for (const pts of confetti){
     const pos=pts.geometry.attributes.position, vel=pts.userData.vel;
