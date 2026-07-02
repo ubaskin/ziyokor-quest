@@ -613,24 +613,89 @@ scene.add(hero);
 let heroSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.hero, transparent:true }));
 heroSprite.scale.set(3.2, 4.2, 1); heroSprite.position.y = 2.05;
 hero.add(heroSprite);
-let heroBody=null, mixer=null, actCombo=null;
+let heroBody=null, mixer=null, actCombo=null, actWalk=null;
+const heroBones = {};
+let bobAmp = 0;
 new GLTFLoader().load('assets/final/hero.glb', gltf=>{
   heroBody = gltf.scene;
   const box = new THREE.Box3().setFromObject(heroBody);
   const size = box.getSize(new THREE.Vector3());
   heroBody.scale.setScalar(3.4/(size.y||1));
+  bobAmp = size.y * .014;           // model o'z birligida qadam tebranishi
   box.setFromObject(heroBody);
   heroBody.position.y = -box.min.y;
   heroBody.userData.y0 = heroBody.position.y;
+  heroBody.traverse(o=>{
+    if (o.isBone){ heroBones[o.name]=o; o.userData.rest = { q:o.quaternion.clone(), p:o.position.clone() }; }
+    if (o.isMesh) o.frustumCulled = false;
+  });
   hero.add(heroBody);
   if (heroSprite){ hero.remove(heroSprite); heroSprite=null; }
+  mixer = new THREE.AnimationMixer(heroBody);
   if (gltf.animations.length){
-    mixer = new THREE.AnimationMixer(heroBody);
     actCombo = mixer.clipAction(gltf.animations[0]);
     actCombo.setLoop(THREE.LoopOnce);
   }
+  // tashqi klip fayllari (faqat animatsiya, mesh'siz — 33/70 KB)
+  const gl2 = new GLTFLoader();
+  gl2.load('assets/final/anim_walk.glb', g=>{
+    if (!g.animations.length) return;
+    // root-motion siljishini olib tashlaymiz (joyida yurish)
+    g.animations[0].tracks = g.animations[0].tracks.filter(tr=>!/Hips\.position/.test(tr.name));
+    actWalk = mixer.clipAction(g.animations[0]);
+    actWalk.play(); actWalk.setEffectiveWeight(0);
+  });
+  gl2.load('assets/final/anim_idle.glb', g=>{
+    if (!g.animations.length) return;
+    actIdle = mixer.clipAction(g.animations[0]);
+    actIdle.play(); actIdle.setEffectiveWeight(1);
+  });
+  mixer.addEventListener('finished', e=>{
+    if (e.action===actCombo) comboUntil = 0;
+  });
 }, undefined, ()=>{/* sprite qoladi */});
-function heroCheer(){ if (actCombo){ actCombo.reset().play(); } }
+let actIdle=null, comboUntil=0;
+function heroCheer(){
+  if (!actCombo) return;
+  comboUntil = clock.elapsedTime + (actCombo.getClip().duration || 1.5);
+  actCombo.reset().setEffectiveWeight(1).play();
+}
+
+/* --- protsedural yurish tsikli (suyaklar bilan) --- */
+const W = { leg:.62, knee:.85, arm:.45, elbow:.35, foot:.22, sway:.05, twist:.08, sign:1 };
+const _q = new THREE.Quaternion();
+const AXX = new THREE.Vector3(1,0,0), AXY = new THREE.Vector3(0,1,0), AXZ = new THREE.Vector3(0,0,1);
+function swing(name, axis, angle){
+  const b = heroBones[name]; if (!b) return;
+  _q.setFromAxisAngle(axis, angle);
+  b.quaternion.copy(b.userData.rest.q).multiply(_q);
+}
+function walkPose(ph, k, t){
+  if (!heroBones.Hips) return;
+  const s = Math.sin(ph) * W.sign;
+  // oyoqlar: qarama-qarshi fazada, tizza faqat orqadagi oyoqda bukiladi
+  swing('LeftUpLeg',  AXX,  s*W.leg*k);
+  swing('RightUpLeg', AXX, -s*W.leg*k);
+  swing('LeftLeg',    AXX,  (Math.max(0,-s)*W.knee + .04)*k*W.sign);
+  swing('RightLeg',   AXX,  (Math.max(0, s)*W.knee + .04)*k*W.sign);
+  swing('LeftFoot',   AXX, (-s*W.foot)*k);
+  swing('RightFoot',  AXX, ( s*W.foot)*k);
+  // qo'llar: oyoqqa qarama-qarshi
+  swing('LeftArm',    AXX, -s*W.arm*k);
+  swing('RightArm',   AXX,  s*W.arm*k);
+  swing('LeftForeArm',  AXX, -(.15+Math.max(0,-s)*W.elbow)*k*W.sign);
+  swing('RightForeArm', AXX, -(.15+Math.max(0, s)*W.elbow)*k*W.sign);
+  // tana: yengil burilish + nafas olish (turgan payt)
+  swing('Spine',   AXY,  s*W.twist*k);
+  swing('Spine02', AXX,  Math.sin(t*2)*.03*(1-k));
+  swing('Head',    AXY, -s*W.twist*.6*k);
+  // son: yuqoriga-pastga qadam ritmi + yon tebranish
+  const h = heroBones.Hips;
+  h.position.copy(h.userData.rest.p);
+  h.position.y += (Math.abs(Math.sin(ph*2))-.5)*bobAmp*k;
+  h.quaternion.copy(h.userData.rest.q);
+  _q.setFromAxisAngle(AXZ, s*W.sway*k); h.quaternion.multiply(_q);
+}
 
 /* confetti */
 let confetti = null;
@@ -851,31 +916,48 @@ function resize(){
 addEventListener('resize', resize); resize();
 
 const clock=new THREE.Clock();
-let bob=0;
+let bob=0, walkVel=0, walkBlend=0;
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(), .05);
-  // walking
+  // walking — silliq tezlanish + burilish
   if (S.phase==='walk' && walkQueue.length){
     const target=walkQueue[0];
     const p=hero.position, d=target.clone().sub(p); d.y=0;
     const dist=d.length();
-    if (dist<.2){ walkQueue.shift(); if(!walkQueue.length){ const f=walkDone; walkDone=null; f&&f(); } }
+    if (dist<.22){ walkQueue.shift(); if(!walkQueue.length){ const f=walkDone; walkDone=null; f&&f(); } }
     else {
-      hero.rotation.y = Math.atan2(d.x, d.z);
-      d.normalize().multiplyScalar(Math.min(6*dt, dist));
+      // burilish: eng qisqa yoy bo'ylab yumshoq (GTA uslubi)
+      const head = Math.atan2(d.x, d.z);
+      let diff = head - hero.rotation.y;
+      diff = ((diff + Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI;
+      hero.rotation.y += diff * Math.min(1, 9*dt);
+      // tezlanish / manzilga yaqinda sekinlashish
+      walkVel = Math.min(5.5, walkVel + 12*dt, .8 + dist*2.5);
+      d.normalize().multiplyScalar(Math.min(walkVel*dt, dist));
       p.add(d);
-      bob+=dt*10;
+      bob += dt*(4 + walkVel*1.1);
+      walkBlend = Math.min(1, walkBlend + 5*dt);
       if (heroSprite) heroSprite.position.y = 2.05 + Math.abs(Math.sin(bob))*.25;
-      else if (heroBody){
-        heroBody.position.y = heroBody.userData.y0 + Math.abs(Math.sin(bob))*.14;
-        heroBody.rotation.z = Math.sin(bob)*.05;
-      }
     }
-  } else if (heroBody){
-    heroBody.rotation.z *= .9;
+  } else {
+    walkVel = 0;
+    walkBlend = Math.max(0, walkBlend - 4*dt);
   }
-  if (mixer) mixer.update(dt);
+  // skelet animatsiyasi: walk/idle kliplar aralashmasi, cheer paytida ular o'chadi
+  if (mixer){
+    const comboOn = clock.elapsedTime < comboUntil;
+    if (actWalk){
+      actWalk.setEffectiveWeight(comboOn ? 0 : walkBlend);
+      actWalk.timeScale = .55 + walkVel*.2;
+    }
+    if (actIdle) actIdle.setEffectiveWeight(comboOn ? 0 : 1-walkBlend);
+    mixer.update(dt);
+  }
+  // zaxira: klip yuklanmagan bo'lsa protsedural yurish
+  if (heroBody && !actWalk && !(clock.elapsedTime < comboUntil)){
+    walkPose(bob, walkBlend, clock.elapsedTime);
+  }
   // plank drop animation
   for (const planks of bridges) for (const pl of planks){
     if (pl.userData.drop){
