@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ziyokor Quest — Bilim orollari</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:#87c5f0; }
+  #c { position:fixed; inset:0; display:block; }
+
+  /* ---------- overlays ---------- */
+  .ov { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; }
+  .card { background:rgba(255,255,255,.96); border-radius:24px; padding:22px; width:min(480px,92vw);
+          box-shadow:0 20px 60px rgba(0,40,90,.35); text-align:center; }
+
+  /* start screen */
+  #start { background:#4aa3e0; background-size:cover; background-position:center; }
+  #start .card { backdrop-filter:blur(4px); background:rgba(255,255,255,.92); }
+  #start h1 { font-size:30px; color:#1a5fb4; letter-spacing:.5px; }
+  #start p.sub { color:#555; margin:6px 0 16px; font-size:14px; }
+  #start input { width:100%; padding:14px; font-size:18px; border:2px solid #cfe3f7; border-radius:14px; text-align:center; margin-bottom:12px; outline:none; }
+  #start input:focus { border-color:#4a9de0; }
+  .grades { display:flex; gap:10px; margin-bottom:16px; }
+  .grades button { flex:1; padding:14px 0; font-size:18px; font-weight:700; border:2px solid #cfe3f7; background:#fff; border-radius:14px; color:#1a5fb4; cursor:pointer; }
+  .grades button.sel { background:#1a5fb4; color:#fff; border-color:#1a5fb4; }
+  .big { width:100%; padding:16px; font-size:20px; font-weight:800; color:#fff; border:none; border-radius:16px;
+         background:linear-gradient(135deg,#ff9a3d,#ff6a3d); cursor:pointer; box-shadow:0 6px 0 #d9541f; }
+  .big:active { transform:translateY(3px); box-shadow:0 3px 0 #d9541f; }
+  .big:disabled { opacity:.5; }
+
+  /* HUD */
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center;
+         padding:10px 14px; z-index:10; pointer-events:none; }
+  .pill { background:rgba(255,255,255,.9); border-radius:999px; padding:8px 16px; font-weight:800; font-size:16px;
+          color:#1a5fb4; box-shadow:0 4px 14px rgba(0,40,90,.18); }
+  #btnGo { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:10;
+           padding:16px 44px; font-size:22px; font-weight:900; color:#fff; border:none; border-radius:999px;
+           background:linear-gradient(135deg,#38c172,#1fa055); box-shadow:0 6px 0 #157a3e, 0 10px 30px rgba(0,60,20,.3); cursor:pointer; }
+  #btnGo:active { transform:translateX(-50%) translateY(3px); box-shadow:0 3px 0 #157a3e; }
+
+  /* quiz */
+  #quiz .card { padding:0; overflow:hidden; }
+  #qHead { height:120px; background-size:cover; background-position:center; position:relative; }
+  #qHead .tag { position:absolute; left:12px; bottom:10px; background:rgba(26,95,180,.92); color:#fff;
+                padding:6px 14px; border-radius:999px; font-weight:800; font-size:14px; }
+  #qHead .num { position:absolute; right:12px; bottom:10px; background:rgba(255,255,255,.92); color:#1a5fb4;
+                padding:6px 12px; border-radius:999px; font-weight:800; font-size:14px; }
+  #qBody { padding:18px; }
+  #qText { font-size:20px; font-weight:700; color:#223; min-height:56px; display:flex; align-items:center; justify-content:center; }
+  #qOpts { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  #qOpts button { padding:16px 8px; font-size:20px; font-weight:800; border:2px solid #cfe3f7; background:#f4f9ff;
+                  border-radius:14px; color:#1a5fb4; cursor:pointer; transition:transform .08s; }
+  #qOpts button:active { transform:scale(.96); }
+  #qOpts button.ok { background:#38c172; color:#fff; border-color:#2c9c5c; }
+  #qOpts button.bad { background:#e05252; color:#fff; border-color:#c04040; opacity:.7; }
+  #qStars { margin-top:12px; font-size:15px; color:#777; font-weight:600; }
+  #mascot { position:absolute; left:-8px; top:-54px; width:92px; pointer-events:none; filter:drop-shadow(0 4px 8px rgba(0,0,0,.25)); }
+
+  /* finish */
+  #fin h1 { color:#1a5fb4; font-size:26px; margin-bottom:6px; }
+  #finStars { font-size:40px; margin:8px 0; }
+  #lb { margin-top:14px; text-align:left; max-height:220px; overflow-y:auto; }
+  #lb .row { display:flex; justify-content:space-between; padding:8px 12px; border-radius:10px; font-weight:700; color:#334; }
+  #lb .row:nth-child(odd){ background:#f2f8ff; }
+  #lb .row.me { background:#ffe9c7; }
+
+  #load { background:#7cc0ec; flex-direction:column; gap:14px; color:#fff; font-weight:800; font-size:18px; z-index:40; }
+  #bar { width:min(300px,70vw); height:12px; background:rgba(255,255,255,.35); border-radius:99px; overflow:hidden; }
+  #barIn { height:100%; width:0%; background:#fff; border-radius:99px; transition:width .2s; }
+
+  .toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:rgba(26,95,180,.94); color:#fff;
+           padding:12px 22px; border-radius:999px; font-weight:800; font-size:17px; z-index:30; box-shadow:0 8px 24px rgba(0,40,90,.35);
+           animation:pop .3s ease; white-space:nowrap; }
+  @keyframes pop { from { transform:translateX(-50%) scale(.6); opacity:0; } }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="pill" id="hudStars">⭐ 0</div>
+  <div class="pill" id="hudIsl">🏝 1/5</div>
+  <div class="pill" id="hudTime">⏱ 0:00</div>
+</div>
+<button id="btnGo" class="hidden">YUR ▶</button>
+
+<div id="load" class="ov"><div>Bilim orollari yuklanmoqda…</div><div id="bar"><div id="barIn"></div></div></div>
+
+<div id="start" class="ov hidden">
+  <div class="card">
+    <h1>🏝 ZIYOKOR QUEST</h1>
+    <p class="sub">Bilim orollari bo'ylab sayohat — 5 orol, 20 jumboq!</p>
+    <input id="inpName" type="text" maxlength="24" placeholder="Isming nima?">
+    <div class="grades">
+      <button data-g="2">2-sinf</button>
+      <button data-g="3" class="sel">3-sinf</button>
+      <button data-g="4">4-sinf</button>
+    </div>
+    <button class="big" id="btnStart">SAYOHATNI BOSHLASH 🚀</button>
+  </div>
+</div>
+
+<div id="quiz" class="ov hidden">
+  <div class="card" style="position:relative">
+    <img id="mascot" src="assets/final/mascot.png" alt="">
+    <div id="qHead"><span class="tag" id="qTag"></span><span class="num" id="qNum"></span></div>
+    <div id="qBody">
+      <div id="qText"></div>
+      <div id="qOpts"></div>
+      <div id="qStars"></div>
+    </div>
+  </div>
+</div>
+
+<div id="fin" class="ov hidden">
+  <div class="card">
+    <h1>🎉 TABRIKLAYMIZ!</h1>
+    <div>Sen Bilim minorasiga yetib kelding!</div>
+    <div id="finStars"></div>
+    <div id="finInfo" style="color:#666;font-weight:600"></div>
+    <div id="lb"></div>
+    <button class="big" style="margin-top:14px" onclick="location.reload()">YANA O'YNASH 🔄</button>
+  </div>
+</div>
+
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= CONFIG ================= */
+const DB = 'https://ziyokor-qabul-default-rtdb.firebaseio.com';
+const ISLANDS = [
+  { key:'amal',   name:"Amallar oroli",     img:'assets/final/isl_amal.jpg' },
+  { key:'geo',    name:"Geometriya qal'asi", img:'assets/final/isl_geo.jpg' },
+  { key:'kasr',   name:"Ulushlar g'ori",    img:'assets/final/isl_kasr.jpg' },
+  { key:'masala', name:"Masalalar shahri",  img:'assets/final/isl_masala.jpg' },
+  { key:'final',  name:"Bilim minorasi",    img:'assets/final/isl_final.jpg' },
+];
+const Q_PER_ISLAND = 4;
+
+/* ================= AUDIO ================= */
+const SND = {};
+for (const n of ['welcome','barakalla','ajoyib','urinib','koprik','final'])
+  SND[n] = new Audio('audio/' + n + '.mp3');
+function say(n){ try { const a=SND[n]; a.currentTime=0; a.play().catch(()=>{}); } catch(e){} }
+let AC=null;
+function ding(freq=880, dur=.15, type='sine', vol=.25){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=vol;
+    g.gain.exponentialRampToValueAtTime(.001, AC.currentTime+dur);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+const sfxStar = ()=>{ ding(880,.12); setTimeout(()=>ding(1320,.2),110); };
+const sfxBad  = ()=>ding(180,.3,'square',.15);
+
+/* ================= QUESTIONS ================= */
+const ri=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const pick=a=>a[ri(0,a.length-1)];
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=ri(0,i); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+function mkQ(q, ans, distract){
+  const s=new Set([ans]); let g=0;
+  const gen = distract || (()=>ans+pick([-10,-2,-1,1,2,10,ri(3,12)]));
+  while(s.size<4 && g++<300){ const v=gen(); if(v!==ans && v>=0) s.add(v); }
+  let b=ans; while(s.size<4){ b+=ri(1,3); s.add(b); }
+  return { q, ans:fmt(ans), opts:shuffle([...s]).map(fmt) };
+}
+function mkQs(q, ans, opts){ return { q, ans, opts:shuffle(opts.slice()) }; } // string options
+const NAMES=['Ali','Laylo','Aziz','Malika','Diyor','Zuhra','Umid','Sevara'];
+const SHAPES=[['Uchburchak',3],['Kvadrat',4],['Beshburchak',5],['Oltiburchak',6]];
+
+const GEN = {
+  amal: {
+    2: [
+      ()=>{ const a=ri(12,79), b=ri(11,99-a); return mkQ(`${a} + ${b} = ?`, a+b); },
+      ()=>{ const a=ri(30,99), b=ri(11,a-10); return mkQ(`${a} − ${b} = ?`, a-b); },
+      ()=>{ const m=pick([2,3,4,5]), n=ri(3,9); return mkQ(`${m} × ${n} = ?`, m*n); },
+      ()=>{ const a=ri(3,9), b=ri(3,9), c=ri(2,Math.min(9,a+b-1)); return mkQ(`${a} + ${b} − ${c} = ?`, a+b-c); },
+    ],
+    3: [
+      ()=>{ const a=ri(120,780), b=ri(110,990-a); return mkQ(`${a} + ${b} = ?`, a+b); },
+      ()=>{ const a=ri(300,990), b=ri(110,a-100); return mkQ(`${a} − ${b} = ?`, a-b); },
+      ()=>{ const m=ri(3,9), n=ri(3,9); return mkQ(`${m} × ${n} = ?`, m*n); },
+      ()=>{ const m=ri(3,9), n=ri(3,9); return mkQ(`${m*n} ÷ ${m} = ?`, n, ()=>n+pick([-2,-1,1,2,3])); },
+    ],
+    4: [
+      ()=>{ const a=ri(13,98), m=ri(3,9); return mkQ(`${a} × ${m} = ?`, a*m); },
+      ()=>{ const a=ri(1200,7800), b=ri(1100,9900-a); return mkQ(`${fmt(a)} + ${fmt(b)} = ?`, a+b); },
+      ()=>{ const c=ri(3,9), n=ri(13,98); return mkQ(`${c*n} ÷ ${c} = ?`, n); },
+      ()=>{ const a=ri(3,9), b=ri(3,9), c=ri(4,30); return mkQ(`${c} + ${a} × ${b} = ?`, c+a*b, ()=>pick([(c+a)*b, c+a*b+pick([-10,-1,1,10]), c+a+b])); },
+    ],
+  },
+  geo: {
+    2: [
+      ()=>{ const [n,k]=pick(SHAPES); return mkQ(`${n}ning nechta tomoni bor?`, k, ()=>ri(3,8)); },
+      ()=>{ const [n,k]=pick(SHAPES); return mkQ(`${n}ning nechta uchi (burchagi) bor?`, k, ()=>ri(3,8)); },
+      ()=>{ const a=ri(2,9); return mkQ(`Tomoni ${a} sm bo'lgan kvadratning perimetri necha sm?`, 4*a, ()=>pick([2*a,3*a,a*a,4*a+pick([-4,4])])); },
+      ()=>mkQs(`Doiraning nechta burchagi bor?`, '0', ['0','1','2','4']),
+    ],
+    3: [
+      ()=>{ const a=ri(3,12); return mkQ(`Tomoni ${a} sm bo'lgan kvadratning perimetri necha sm?`, 4*a, ()=>pick([2*a,3*a,a*a])); },
+      ()=>{ const a=ri(4,12), b=ri(2,a-1); return mkQ(`Bo'yi ${a} sm, eni ${b} sm bo'lgan to'g'ri to'rtburchakning perimetri necha sm?`, 2*(a+b), ()=>pick([a+b,a*b,2*a+b])); },
+      ()=>{ const [n,k]=pick([['Yettiburchak',7],['Sakkizburchak',8],['Oltiburchak',6],['Beshburchak',5]]); return mkQ(`${n}ning nechta tomoni bor?`, k, ()=>ri(5,9)); },
+      ()=>{ const a=ri(3,10); return mkQ(`Perimetri ${4*a} sm bo'lgan kvadratning tomoni necha sm?`, a, ()=>a+pick([-2,-1,1,2])); },
+    ],
+    4: [
+      ()=>{ const a=ri(5,20), b=ri(3,a-1); return mkQ(`Bo'yi ${a} sm, eni ${b} sm bo'lgan to'g'ri to'rtburchakning perimetri necha sm?`, 2*(a+b), ()=>pick([a+b,a*b,2*a+b])); },
+      ()=>{ const a=ri(3,12); return mkQ(`Tomoni ${a} sm bo'lgan kvadratning yuzi necha kv. sm?`, a*a, ()=>pick([4*a,2*a,a*a+pick([-a,a])])); },
+      ()=>{ const a=ri(4,12), b=ri(2,a-1); return mkQ(`Bo'yi ${a} sm, eni ${b} sm bo'lgan to'g'ri to'rtburchakning yuzi necha kv. sm?`, a*b, ()=>pick([2*(a+b),a+b,a*b+pick([-b,b])])); },
+      ()=>{ const a=ri(4,15); return mkQ(`Yuzi ${a*a} kv. sm bo'lgan kvadratning tomoni necha sm?`, a, ()=>a+pick([-2,-1,1,2])); },
+    ],
+  },
+  kasr: {
+    2: [
+      ()=>{ const n=2*ri(4,24); return mkQ(`${n} sonining yarmi nechaga teng?`, n/2, ()=>n/2+pick([-2,-1,1,2,5])); },
+      ()=>{ const n=ri(6,45); return mkQ(`${n} sonining ikki baravari nechaga teng?`, 2*n); },
+      ()=>{ const e=2*ri(3,20); return mkQs(`Qaysi son juft?`, String(e), [String(e),String(2*ri(3,20)+1),String(2*ri(3,20)+1),String(2*ri(21,40)+1)]); },
+      ()=>mkQs(`Yarim soat necha minut?`, '30', ['30','60','15','45']),
+    ],
+    3: [
+      ()=>{ const d=pick([2,3,4]), k=ri(3,12); return mkQ(`${d*k} sonining 1/${d} qismi nechaga teng?`, k, ()=>k+pick([-3,-2,-1,1,2,3])); },
+      ()=>{ const d=pick([2,3,4,5]), k=ri(2,9); return mkQ(`Butunning 1/${d} qismi ${k} ga teng. Butun son nechaga teng?`, d*k, ()=>pick([k+d,d*k+pick([-d,d]),k*2])); },
+      ()=>mkQs(`Chorak soat necha minut?`, '15', ['15','25','30','45']),
+      ()=>{ const n=3*ri(4,15); return mkQ(`${n} sonining uchdan bir qismi nechaga teng?`, n/3, ()=>n/3+pick([-2,-1,1,2])); },
+    ],
+    4: [
+      ()=>{ const d=pick([3,4,5,8]), num=ri(1,d-1), k=ri(3,12); return mkQ(`${d*k} sonining ${num}/${d} qismi nechaga teng?`, num*k, ()=>pick([k,(num+1)*k,num*k+pick([-k,k])])); },
+      ()=>mkQs(`1/2 va 1/4 kasrlarning qaysi biri katta?`, '1/2', ['1/2','1/4','Teng','Aytib boʻlmaydi']),
+      ()=>{ const d=pick([3,4,5]), k=ri(3,10); return mkQ(`Butunning 1/${d} qismi ${k} ga teng. Butun son nechaga teng?`, d*k, ()=>pick([k+d,d*k+pick([-d,d])])); },
+      ()=>{ const d=pick([5,8,10]), num=ri(2,d-1); const others=shuffle([1,2,3,4,5,6,7,8,9].filter(x=>x<d&&x!==num)).slice(0,3); return mkQs(`Qaysi kasr katta: maxrajlari bir xil bo'lsa?  ${others.concat(num).sort(()=>0).map(x=>x+'/'+d).join(', ')}`, `${Math.max(num,...others)}/${d}`, [num,...others].map(x=>x+'/'+d)); },
+    ],
+  },
+  masala: {
+    2: [
+      ()=>{ const N=pick(NAMES), a=ri(20,60), b=ri(5,a-5); return mkQ(`${N}da ${a} ta olma bor edi. U ${b} tasini do'stlariga berdi. Nechta olma qoldi?`, a-b, ()=>pick([a+b,a-b+pick([-2,-1,1,2,10])])); },
+      ()=>{ const a=ri(15,60), b=ri(10,39); return mkQ(`Do'konda ${a} ta daftar bor edi. Yana ${b} ta keltirildi. Endi do'konda nechta daftar bor?`, a+b, ()=>pick([a-b>0?a-b:a+b+5,a+b+pick([-10,-1,1,10])])); },
+      ()=>{ const m=pick([2,3,4,5]), n=ri(2,6); return mkQ(`Bitta savatda ${m} ta nok bor. ${n} ta savatda jami nechta nok bor?`, m*n, ()=>pick([m+n,m*n+pick([-m,m])])); },
+      ()=>{ const N=pick(NAMES), a=ri(5,20), b=ri(3,15); return mkQ(`${N}da ${a} ta qizil va ${b} ta ko'k shar bor. Jami nechta shar bor?`, a+b); },
+    ],
+    3: [
+      ()=>{ const N=pick(NAMES), a=ri(2,9)*1000, b=ri(2,9)*1000; return mkQ(`${N} ${fmt(a)} so'mga non va ${fmt(b)} so'mga sut sotib oldi. Jami necha so'm to'ladi?`, a+b, ()=>pick([a+b+1000,a+b-1000,Math.abs(a-b)||a+b+2000])); },
+      ()=>{ const m=ri(4,9), n=ri(3,9); return mkQ(`Bitta qutida ${m} ta qalam bor. ${n} ta qutida jami nechta qalam bor?`, m*n, ()=>pick([m+n,m*n+pick([-m,m,-n,n])])); },
+      ()=>{ const c=ri(2,8)*1000; return mkQ(`Kitob narxi ${fmt(c)} so'm. ${pick(NAMES)} sotuvchiga 10 000 so'm berdi. Qaytim necha so'm?`, 10000-c, ()=>pick([c,10000-c+1000,10000-c-1000||500])); },
+      ()=>{ const k=ri(3,9), n=ri(3,8); return mkQ(`${k*n} ta o'quvchi ${n} ta qatorga teng bo'lindi. Har bir qatorda nechta o'quvchi bor?`, k, ()=>k+pick([-2,-1,1,2])); },
+    ],
+    4: [
+      ()=>{ const v=pick([60,70,80,90]), t=ri(2,5); return mkQ(`Mashina soatiga ${v} km tezlik bilan yuradi. U ${t} soatda necha km yo'l bosadi?`, v*t, ()=>pick([v+t,v*t+pick([-v,v,-10,10])])); },
+      ()=>{ const v=pick([50,60,70,80]), t=ri(2,4); return mkQ(`Avtobus ${v*t} km yo'lni ${t} soatda bosib o'tdi. Uning tezligi soatiga necha km?`, v, ()=>v+pick([-20,-10,10,20])); },
+      ()=>{ const N=pick(NAMES), a=ri(3,9), m=ri(2,6), e=ri(5,20); return mkQ(`${N} har kuni ${a} ta misol yechadi. U ${m} kun shug'ullandi va yana ${e} ta misol yechdi. Jami nechta misol yechdi?`, a*m+e, ()=>pick([a*m,a+m+e,a*(m+1)+e])); },
+      ()=>{ const n=ri(3,9), p=ri(2,6)*500; return mkQ(`Bitta daftar ${fmt(p)} so'm turadi. ${n} ta daftar necha so'm bo'ladi?`, n*p, ()=>pick([n*p+500,n*p-500,(n+1)*p])); },
+    ],
+  },
+  final: {
+    2: [
+      ()=>{ const a=ri(20,50), b=ri(10,30), c=ri(5,25); return mkQ(`${a} + ${b} − ${c} = ?`, a+b-c); },
+      ()=>{ const s=pick([2,5,10]), st=ri(2,5)*s; return mkQ(`Qatorni davom ettir: ${st}, ${st+s}, ${st+2*s}, ?`, st+3*s, ()=>st+3*s+pick([-s,s,1,-1])); },
+      ()=>mkQs(`Eng katta ikki xonali son qaysi?`, '99', ['99','90','100','98']),
+      ()=>{ const m=pick([2,3,4,5]), x=ri(2,9); return mkQ(`Qaysi sonni ${m} ga ko'paytirsak ${m*x} chiqadi?`, x, ()=>x+pick([-2,-1,1,2])); },
+    ],
+    3: [
+      ()=>{ const a=ri(3,9), b=ri(3,9), c=ri(5,40); return mkQ(`${a} × ${b} + ${c} = ?`, a*b+c, ()=>pick([a*(b+c),a*b-c>0?a*b-c:a*b+c+5,a*b+c+pick([-10,-1,1,10])])); },
+      ()=>{ const s=ri(3,9), st=ri(2,6)*s; return mkQ(`Qatorni davom ettir: ${st}, ${st+s}, ${st+2*s}, ?`, st+3*s, ()=>st+3*s+pick([-s,s,-1,1])); },
+      ()=>{ const m=ri(3,9), x=ri(3,9); return mkQ(`Qaysi sonni ${m} ga ko'paytirsak ${m*x} bo'ladi?`, x, ()=>x+pick([-2,-1,1,2])); },
+      ()=>{ const h=ri(9,18), d=ri(2,5); return mkQs(`Soat ${h}:00. ${d} soatdan keyin soat necha bo'ladi?`, `${h+d>24?h+d-24:h+d}:00`, [0,1,-1,2].map(o=>{let v=h+d+o; if(v>24)v-=24; return v+':00';})); },
+    ],
+    4: [
+      ()=>{ const a=ri(4,15), b=ri(3,12), c=ri(3,9); return mkQ(`(${a} + ${b}) × ${c} = ?`, (a+b)*c, ()=>pick([a+b*c,(a+b)*c+pick([-c,c,-10,10]),a*c+b])); },
+      ()=>{ const m=ri(3,9), x=ri(4,25); return mkQ(`x × ${m} = ${m*x} bo'lsa, x nechaga teng?`, x, ()=>x+pick([-3,-2,-1,1,2,3])); },
+      ()=>{ const m=ri(4,12); return mkQ(`${m-2}, ${m} va ${m+2} sonlarining o'rta arifmetigi nechaga teng?`, m, ()=>m+pick([-2,-1,1,2])); },
+      ()=>{ const a=ri(100,400), b=ri(2,4); return mkQ(`${a*b} sonining 1/${b} qismi nechaga teng?`, a, ()=>a+pick([-100,-10,10,100])); },
+    ],
+  },
+};
+function questionsFor(grade, islKey){
+  const pool = GEN[islKey][grade];
+  const idx = shuffle([0,1,2,3]);
+  return idx.slice(0, Q_PER_ISLAND).map(i => pool[i]());
+}
+
+/* ================= STATE ================= */
+const S = {
+  name:'', grade:3, stars:0, isl:0, t0:0,
+  phase:'load', // load|start|idle|walk|quiz|bridge|final
+};
+
+/* ================= THREE SCENE ================= */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x9fd0f2, 60, 180);
+const camera = new THREE.PerspectiveCamera(55, 1, .1, 500);
+
+scene.add(new THREE.AmbientLight(0xffffff, .75));
+const sun = new THREE.DirectionalLight(0xfff3d6, 1.4);
+sun.position.set(20, 40, 20);
+scene.add(sun);
+
+/* textures */
+const TX = {};
+const lm = new THREE.LoadingManager();
+const tl = new THREE.TextureLoader(lm);
+const toLoad = {
+  sky:'assets/final/sky.jpg', grass:'assets/final/grass.jpg', stone:'assets/final/stone.jpg',
+  wood:'assets/final/wood.jpg', hero:'assets/final/hero.png',
+};
+let loaded=0; const total=Object.keys(toLoad).length;
+lm.onProgress = ()=>{ loaded++; document.getElementById('barIn').style.width = (loaded/total*100)+'%'; };
+for (const k in toLoad) TX[k] = tl.load(toLoad[k]);
+TX.grass.wrapS=TX.grass.wrapT=THREE.RepeatWrapping; TX.grass.repeat.set(3,3);
+TX.stone.wrapS=TX.stone.wrapT=THREE.RepeatWrapping;
+TX.wood.wrapS=TX.wood.wrapT=THREE.RepeatWrapping;
+TX.grass.colorSpace = TX.stone.colorSpace = TX.wood.colorSpace = TX.hero.colorSpace = THREE.SRGBColorSpace;
+
+/* sky dome */
+lm.onLoad = ()=>{
+  TX.sky.colorSpace = THREE.SRGBColorSpace;
+  TX.sky.wrapS = THREE.RepeatWrapping; TX.sky.repeat.set(2,1);
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(220, 32, 16),
+    new THREE.MeshBasicMaterial({ map:TX.sky, side:THREE.BackSide })
+  );
+  dome.position.y = 20;
+  scene.add(dome);
+  document.getElementById('load').classList.add('hidden');
+  const st = document.getElementById('start');
+  st.classList.remove('hidden');
+  st.style.backgroundImage = "url('assets/final/splash.jpg')";
+  S.phase='start';
+};
+
+/* islands */
+const GAP = 24, R = 8;
+const P = []; // island centers
+const XOFF = [0, 6, -6, 5, 0];
+for (let i=0;i<5;i++) P.push(new THREE.Vector3(XOFF[i], 0, -i*GAP));
+
+const matGrass = new THREE.MeshLambertMaterial({ map:TX.grass });
+const matStone = new THREE.MeshLambertMaterial({ map:TX.stone });
+const matWood  = new THREE.MeshLambertMaterial({ map:TX.wood });
+
+function makeIsland(c, i){
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(R, R+1, 3, 24), matStone);
+  top.position.y = -1.5; g.add(top);
+  const grass = new THREE.Mesh(new THREE.CircleGeometry(R, 24), matGrass);
+  grass.rotation.x = -Math.PI/2; grass.position.y = .01; g.add(grass);
+  const root = new THREE.Mesh(new THREE.CylinderGeometry(R-1, 1.2, 9, 12), matStone);
+  root.position.y = -7.5; g.add(root);
+  // trees
+  const nTree = i===4 ? 2 : ri(2,4);
+  for (let t=0;t<nTree;t++){
+    const a = Math.random()*Math.PI*2, rr = R*0.55 + Math.random()*R*0.3;
+    const tg = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.25,.35,1.6,8), matWood);
+    trunk.position.y=.8; tg.add(trunk);
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(1.2,2.6,10),
+      new THREE.MeshLambertMaterial({ color: pick([0x2f9e44,0x37b24d,0x40c057]) }));
+    leaf.position.y=2.6; tg.add(leaf);
+    tg.position.set(c.x+Math.cos(a)*rr, 0, c.z+Math.sin(a)*rr);
+    // keep path clear
+    if (Math.abs(tg.position.x-c.x) < 2.5) tg.position.x += 3;
+    scene.add(tg);
+  }
+  // rocks
+  for (let t=0;t<2;t++){
+    const a=Math.random()*Math.PI*2, rr=R*.7;
+    const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.6+Math.random()*.5), matStone);
+    rock.position.set(c.x+Math.cos(a)*rr, .4, c.z+Math.sin(a)*rr);
+    scene.add(rock);
+  }
+  g.position.copy(c);
+  scene.add(g);
+}
+P.forEach((c,i)=>makeIsland(c,i));
+
+/* final tower on island 5 */
+{
+  const c = P[4], tw = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(3,3.6,7,16), matStone); base.position.y=3.5; tw.add(base);
+  const mid  = new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.6,5,16), matStone); mid.position.y=9.5; tw.add(mid);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3,3.5,16), new THREE.MeshLambertMaterial({ color:0xff6a3d })); roof.position.y=13.7; tw.add(roof);
+  for (let w=0;w<6;w++){
+    const win = new THREE.Mesh(new THREE.BoxGeometry(.7,1,.2),
+      new THREE.MeshBasicMaterial({ color:0xffe066 }));
+    const a=w/6*Math.PI*2;
+    win.position.set(Math.cos(a)*3.02, 3+w%3*3, Math.sin(a)*3.02);
+    win.lookAt(0, win.position.y, 0);
+    tw.add(win);
+  }
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(.9),
+    new THREE.MeshBasicMaterial({ color:0xffd43b }));
+  star.position.y=16.4; tw.add(star);
+  tw.userData.star = star;
+  tw.position.set(c.x, 0, c.z-2);
+  scene.add(tw);
+  window._tower = tw;
+}
+
+/* gates (question arches) at exit edge of islands 0..3 */
+const gates = [];
+for (let i=0;i<4;i++){
+  const from=P[i], to=P[i+1];
+  const dir = to.clone().sub(from).setY(0).normalize();
+  const pos = from.clone().add(dir.clone().multiplyScalar(R-1));
+  const g = new THREE.Group();
+  const l = new THREE.Mesh(new THREE.BoxGeometry(.7,4,.7), matStone); l.position.set(-1.6,2,0); g.add(l);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(.7,4,.7), matStone); r.position.set(1.6,2,0); g.add(r);
+  const t = new THREE.Mesh(new THREE.BoxGeometry(4.6,.7,.9), matWood); t.position.set(0,4.2,0); g.add(t);
+  // "?" sign
+  const cv = document.createElement('canvas'); cv.width=cv.height=128;
+  const cx = cv.getContext('2d');
+  cx.fillStyle='#ffd43b'; cx.beginPath(); cx.arc(64,64,56,0,7); cx.fill();
+  cx.fillStyle='#1a5fb4'; cx.font='bold 84px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle'; cx.fillText('?',64,70);
+  const sm = new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv) });
+  const sp = new THREE.Sprite(sm); sp.scale.set(1.6,1.6,1); sp.position.y=5.4; g.add(sp);
+  g.position.copy(pos);
+  g.lookAt(to.x, 0, to.z);
+  scene.add(g);
+  gates.push({ group:g, sign:sp });
+}
+
+/* bridges (hidden until earned) */
+const bridges = [];
+for (let i=0;i<4;i++){
+  const from=P[i], to=P[i+1];
+  const dir = to.clone().sub(from).setY(0);
+  const len = dir.length() - 2*(R-1.5);
+  dir.normalize();
+  const start = from.clone().add(dir.clone().multiplyScalar(R-1.5));
+  const n = Math.ceil(len/1.1);
+  const planks = [];
+  for (let k=0;k<n;k++){
+    const p = new THREE.Mesh(new THREE.BoxGeometry(2.4,.25,.9), matWood);
+    const pos = start.clone().add(dir.clone().multiplyScalar(k*1.1+.55));
+    p.position.set(pos.x, -.12, pos.z);
+    p.lookAt(to.x, -.12, to.z);
+    p.visible = false;
+    scene.add(p); planks.push(p);
+  }
+  bridges.push(planks);
+}
+
+/* player sprite */
+const hero = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.hero, transparent:true }));
+hero.scale.set(3.2, 4.2, 1);
+hero.position.set(P[0].x, 2.05, P[0].z + 2);
+scene.add(hero);
+hero.material.rotation = 0;
+
+/* confetti */
+let confetti = null;
+function startConfetti(){
+  const N=350, pos=new Float32Array(N*3), vel=[];
+  const c=P[4];
+  for(let i=0;i<N;i++){
+    pos[i*3]=c.x+(Math.random()-.5)*2; pos[i*3+1]=14+Math.random()*4; pos[i*3+2]=c.z+(Math.random()-.5)*2;
+    vel.push([(Math.random()-.5)*.25, Math.random()*.1+.05, (Math.random()-.5)*.25]);
+  }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const m=new THREE.PointsMaterial({ size:.45, vertexColors:false, color:0xffffff });
+  // multi-color: 3 point clouds
+  confetti=[];
+  for (const col of [0xff6a3d, 0xffd43b, 0x38c172, 0x4a9de0]){
+    const gg=g.clone();
+    const pts=new THREE.Points(gg, new THREE.PointsMaterial({ size:.4, color:col }));
+    pts.userData.vel = vel.map(v=>[v[0]*(Math.random()+.5), v[1], v[2]*(Math.random()+.5)]);
+    scene.add(pts); confetti.push(pts);
+  }
+}
+
+/* camera */
+function camTarget(){
+  return { pos: new THREE.Vector3(hero.position.x, hero.position.y+7.5, hero.position.z+12),
+           look: new THREE.Vector3(hero.position.x, hero.position.y+1, hero.position.z-4) };
+}
+{ const t=camTarget(); camera.position.copy(t.pos); }
+
+/* ================= GAME FLOW ================= */
+const $ = id=>document.getElementById(id);
+const toast = (msg, ms=1800)=>{
+  const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
+  document.body.appendChild(d); setTimeout(()=>d.remove(), ms);
+};
+
+let walkQueue = [];   // points to walk through
+let walkDone = null;
+
+function walkTo(points, done){
+  walkQueue = points.slice();
+  walkDone = done;
+  S.phase='walk';
+  $('btnGo').classList.add('hidden');
+}
+
+function arriveGate(){
+  S.phase='quiz';
+  openQuiz(S.isl, ()=>{ buildBridge(S.isl); });
+}
+
+function buildBridge(i){
+  S.phase='bridge';
+  say('koprik');
+  gates[i].sign.material.map.dispose?.();
+  gates[i].sign.visible=false;
+  const planks = bridges[i];
+  planks.forEach((p,k)=>{
+    setTimeout(()=>{
+      p.visible=true; p.position.y=1.5; p.userData.drop=true;
+      if (k===planks.length-1){
+        setTimeout(()=>{
+          // walk across to next island center
+          const from=P[i], to=P[i+1];
+          const dir=to.clone().sub(from).setY(0).normalize();
+          const mid=from.clone().add(dir.clone().multiplyScalar(GAP/2));
+          S.isl=i+1;
+          $('hudIsl').textContent = `🏝 ${S.isl+1}/5`;
+          walkTo([new THREE.Vector3(mid.x,2.05,mid.z), new THREE.Vector3(to.x,2.05,to.z+1)], ()=>{
+            if (S.isl===4){ finalQuiz(); }
+            else { S.phase='idle'; $('btnGo').classList.remove('hidden'); toast(ISLANDS[S.isl].name + 'ga xush kelibsiz!'); }
+          });
+        }, 500);
+      }
+    }, k*130);
+  });
+}
+
+function finalQuiz(){
+  S.phase='quiz';
+  toast('Bilim minorasi seni kutmoqda!');
+  setTimeout(()=>openQuiz(4, finish), 900);
+}
+
+function finish(){
+  S.phase='final';
+  say('final');
+  startConfetti();
+  const dt = Math.round((Date.now()-S.t0)/1000);
+  const mm=Math.floor(dt/60), ss=dt%60;
+  $('finStars').textContent = `⭐ ${S.stars} / ${5*Q_PER_ISLAND*3}`;
+  $('finInfo').textContent = `${S.name} · ${S.grade}-sinf · vaqt ${mm}:${String(ss).padStart(2,'0')}`;
+  saveScore(dt).then(loadLeaderboard);
+  setTimeout(()=>$('fin').classList.remove('hidden'), 2500);
+}
+
+/* ================= QUIZ UI ================= */
+let quizState = null;
+function openQuiz(islIdx, done){
+  const qs = questionsFor(S.grade, ISLANDS[islIdx].key);
+  quizState = { qs, i:0, tries:0, done, islIdx };
+  $('qHead').style.backgroundImage = `url('${ISLANDS[islIdx].img}')`;
+  $('qTag').textContent = ISLANDS[islIdx].name;
+  $('quiz').classList.remove('hidden');
+  showQ();
+}
+function showQ(){
+  const st=quizState, q=st.qs[st.i];
+  st.tries=0;
+  $('qNum').textContent = `${st.i+1} / ${st.qs.length}`;
+  $('qText').textContent = q.q;
+  $('qStars').textContent = '3 yulduz uchun birinchi urinishda top!';
+  const box=$('qOpts'); box.innerHTML='';
+  for (const o of q.opts){
+    const b=document.createElement('button');
+    b.textContent=o;
+    b.onclick=()=>answer(b, String(o)===String(q.ans));
+    box.appendChild(b);
+  }
+}
+function answer(btn, ok){
+  const st=quizState;
+  if (ok){
+    btn.classList.add('ok');
+    const got = Math.max(3-st.tries, 1);
+    S.stars += got;
+    $('hudStars').textContent = `⭐ ${S.stars}`;
+    sfxStar();
+    say(Math.random()<.5?'barakalla':'ajoyib');
+    toast(`+${got} ⭐`);
+    setTimeout(nextQ, 900);
+  } else {
+    btn.classList.add('bad'); btn.disabled=true;
+    st.tries++;
+    sfxBad();
+    if (st.tries>=3){
+      // reveal correct
+      const q=st.qs[st.i];
+      [...$('qOpts').children].forEach(b=>{ if(String(b.textContent)===String(q.ans)) b.classList.add('ok'); b.disabled=true; });
+      toast(`To'g'ri javob: ${q.ans}`);
+      setTimeout(nextQ, 1600);
+    } else {
+      say('urinib');
+      $('qStars').textContent = st.tries===1 ? 'Endi 2 yulduz uchun!' : 'Endi 1 yulduz uchun!';
+    }
+  }
+}
+function nextQ(){
+  const st=quizState;
+  st.i++;
+  if (st.i < st.qs.length) showQ();
+  else { $('quiz').classList.add('hidden'); st.done(); }
+}
+
+/* ================= LEADERBOARD ================= */
+async function saveScore(sec){
+  try{
+    await fetch(`${DB}/quest/scores.json`, { method:'POST',
+      body: JSON.stringify({ ism:S.name, sinf:S.grade, stars:S.stars, vaqt:sec, ts:Date.now() }) });
+  }catch(e){}
+}
+async function loadLeaderboard(){
+  try{
+    const r = await fetch(`${DB}/quest/scores.json`);
+    const d = await r.json() || {};
+    const rows = Object.values(d).sort((a,b)=> b.stars-a.stars || a.vaqt-b.vaqt).slice(0,10);
+    const lb=$('lb'); lb.innerHTML='<div style="font-weight:900;color:#1a5fb4;padding:6px 12px">🏆 Eng zoʻr sayohatchilar</div>';
+    rows.forEach((row,i)=>{
+      const el=document.createElement('div'); el.className='row';
+      if (row.ism===S.name && row.stars===S.stars) el.classList.add('me');
+      el.innerHTML = `<span>${['🥇','🥈','🥉'][i]||(i+1)+'.'} ${row.ism} <small style="color:#888">${row.sinf}-sinf</small></span><span>⭐ ${row.stars}</span>`;
+      lb.appendChild(el);
+    });
+  }catch(e){}
+}
+
+/* ================= INPUT ================= */
+document.querySelectorAll('.grades button').forEach(b=>{
+  b.onclick=()=>{ document.querySelectorAll('.grades button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); S.grade=+b.dataset.g; };
+});
+$('inpName').value = localStorage.getItem('zq_name')||'';
+$('btnStart').onclick=()=>{
+  const n=$('inpName').value.trim();
+  if(!n){ $('inpName').focus(); $('inpName').placeholder='Avval ismingni yoz 🙂'; return; }
+  S.name=n; localStorage.setItem('zq_name',n);
+  $('start').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  S.t0=Date.now();
+  say('welcome');
+  S.phase='idle';
+  $('btnGo').classList.remove('hidden');
+  toast(`${ISLANDS[0].name}ga xush kelibsiz!`);
+};
+$('btnGo').onclick=()=>{
+  if (S.phase!=='idle') return;
+  const i=S.isl, from=P[i];
+  const to=P[i+1];
+  const dir=to.clone().sub(from).setY(0).normalize();
+  const gpos=from.clone().add(dir.clone().multiplyScalar(R-2.6));
+  walkTo([new THREE.Vector3(gpos.x,2.05,gpos.z)], arriveGate);
+};
+
+/* timer */
+setInterval(()=>{
+  if(!S.t0 || S.phase==='final') return;
+  const dt=Math.round((Date.now()-S.t0)/1000);
+  $('hudTime').textContent=`⏱ ${Math.floor(dt/60)}:${String(dt%60).padStart(2,'0')}`;
+},1000);
+
+/* ================= LOOP ================= */
+function resize(){
+  const w=innerWidth, h=innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const clock=new THREE.Clock();
+let bob=0;
+function tick(){
+  requestAnimationFrame(tick);
+  const dt=Math.min(clock.getDelta(), .05);
+  // walking
+  if (S.phase==='walk' && walkQueue.length){
+    const target=walkQueue[0];
+    const p=hero.position, d=target.clone().sub(p); d.y=0;
+    const dist=d.length();
+    if (dist<.2){ walkQueue.shift(); if(!walkQueue.length){ const f=walkDone; walkDone=null; f&&f(); } }
+    else {
+      d.normalize().multiplyScalar(Math.min(6*dt, dist));
+      p.add(d);
+      bob+=dt*10;
+      p.y=2.05+Math.abs(Math.sin(bob))*.25;
+    }
+  }
+  // plank drop animation
+  for (const planks of bridges) for (const pl of planks){
+    if (pl.userData.drop){
+      pl.position.y = Math.max(-.12, pl.position.y - 6*dt);
+      if (pl.position.y<=-.12) pl.userData.drop=false;
+    }
+  }
+  // tower star spin
+  if (window._tower){ window._tower.userData.star.rotation.y += dt*1.5; }
+  // gate signs pulse
+  const t=clock.elapsedTime;
+  gates.forEach(g=>{ if(g.sign.visible) g.sign.scale.setScalar(1.5+Math.sin(t*3)*.15); });
+  // confetti
+  if (confetti) for (const pts of confetti){
+    const pos=pts.geometry.attributes.position, vel=pts.userData.vel;
+    for(let i=0;i<vel.length;i++){
+      pos.array[i*3]+=vel[i][0]; pos.array[i*3+1]+=vel[i][1]-=.004; pos.array[i*3+2]+=vel[i][2];
+      if(pos.array[i*3+1]<0){ pos.array[i*3+1]=14+Math.random()*4; vel[i][1]=Math.random()*.1+.05; }
+    }
+    pos.needsUpdate=true;
+  }
+  // camera follow
+  const ct=camTarget();
+  camera.position.lerp(ct.pos, 1-Math.pow(.001,dt));
+  camera.lookAt(ct.look);
+  renderer.render(scene,camera);
+}
+tick();
+</script>
+</body>
+</html>

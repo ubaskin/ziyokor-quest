@@ -1,0 +1,12 @@
+{
+  "name": "Ziyokor Quest — Bilim orollari",
+  "short_name": "Ziyokor Quest",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#87c5f0",
+  "theme_color": "#1a5fb4",
+  "icons": [
+    { "src": "assets/final/mascot.png", "sizes": "311x400", "type": "image/png" }
+  ]
+}
