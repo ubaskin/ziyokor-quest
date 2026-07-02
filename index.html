@@ -997,7 +997,7 @@ function tick(){
     const i = S.isl;
     if (i<4 && !solved[i]){
       const g = gates[i].group.position;
-      if (Math.hypot(hp.x-g.x, hp.z-g.z) < 2.6){
+      if (Math.hypot(hp.x-g.x, hp.z-g.z) < 3.4){
         solvedGuard(i);
       }
     } else if (i===4 && !solved[4]){
