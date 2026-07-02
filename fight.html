@@ -180,10 +180,10 @@ const gAtk  = await load('assets/final/hero3_attack.glb');
 const stripRoot = c=>{ c.tracks = c.tracks.filter(tr=>!/Hips\.position/.test(tr.name)); return c; };
 const CLIP = { idle:gIdle.animations[0], walk:stripRoot(gWalk.animations[0]), attack:stripRoot(gAtk.animations[0]) };
 
-function makeFighter(srcScene, mat, targetH){
+function makeFighter(srcScene, mat, targetH, force=false){
   const grp = new THREE.Group();
   const body = SkeletonUtils.clone(srcScene);
-  body.traverse(o=>{ if(o.isMesh){ if(!o.material?.map) o.material = mat; o.castShadow=true; o.frustumCulled=false; } });
+  body.traverse(o=>{ if(o.isMesh){ if(force || !o.material?.map) o.material = mat; o.castShadow=true; o.frustumCulled=false; } });
   fitOnGround(body, targetH);
   grp.add(body);
   const mixer = new THREE.AnimationMixer(body);
@@ -195,9 +195,33 @@ function makeFighter(srcScene, mat, targetH){
 }
 
 const hero  = makeFighter(gIdle.scene, crystalMat, 2.0);
-const enemy = makeFighter(gIdle.scene, shadowMat, 2.3);
+const enemy = makeFighter(gIdle.scene, shadowMat, 2.3, true);
 hero.grp.position.set(0,0,4);
 enemy.grp.position.set(0,0,-4);
+
+/* qilich + kitob-qalqon (qahramon qo'lida) */
+async function attachProp(url, root, boneName, worldLen, rot, off){
+  const g = await load(url).catch(()=>null);
+  if (!g) return null;
+  let bone=null; root.traverse(o=>{ if(o.isBone && o.name===boneName) bone=bone||o; });
+  if (!bone) return null;
+  const prop = g.scene;
+  prop.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
+  const box = new THREE.Box3().setFromObject(prop);
+  const len = box.getSize(new THREE.Vector3()).length() || 1;
+  const ws = new THREE.Vector3(); bone.getWorldScale(ws);
+  const k = worldLen/len/(ws.x||1);
+  const grp = new THREE.Group();
+  grp.scale.setScalar(k);
+  grp.rotation.set(rot[0], rot[1], rot[2]);
+  grp.position.set(off[0]/(ws.x||1), off[1]/(ws.x||1), off[2]/(ws.x||1));
+  grp.add(prop);
+  bone.add(grp);
+  return grp;
+}
+// qilich: tig'i -Y ga qaragan model; qo'l panjasidan tashqariga yo'naltiramiz
+const swordGrp  = await attachProp('assets/final/prop_sword.glb',  hero.body, 'RightHand', 1.5, [Math.PI/2, 0, 0], [0, .05, .04]);
+const shieldGrp = await attachProp('assets/final/prop_shield.glb', hero.body, 'LeftForeArm', .9, [0, 0, Math.PI/2], [0, .06, 0]);
 
 /* dushman ko'zlari + tuman */
 {
