@@ -630,6 +630,21 @@ new GLTFLoader().load('assets/final/hero.glb', gltf=>{
     if (o.isMesh) o.frustumCulled = false;
   });
   hero.add(heroBody);
+  // skinned mesh'da Box3 aldaydi — haqiqiy bo'yni SUYAKLAR bo'yicha o'lchaymiz
+  (function fitHero(){
+    const v = new THREE.Vector3();
+    hero.updateWorldMatrix(true, true);
+    let minY=1e9, maxY=-1e9;
+    for (const k in heroBones){ heroBones[k].getWorldPosition(v); minY=Math.min(minY,v.y); maxY=Math.max(maxY,v.y); }
+    const hgt = maxY - minY;
+    if (hgt > .01){
+      heroBody.scale.multiplyScalar(3.2/hgt);
+      hero.updateWorldMatrix(true, true);
+      let minY2=1e9;
+      for (const k in heroBones){ heroBones[k].getWorldPosition(v); minY2=Math.min(minY2,v.y); }
+      heroBody.position.y += (hero.position.y - minY2) - .06; // oyoq kaftlari yerga
+    }
+  })();
   if (heroSprite){ hero.remove(heroSprite); heroSprite=null; }
   mixer = new THREE.AnimationMixer(heroBody);
   if (gltf.animations.length){
