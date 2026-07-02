@@ -35,10 +35,10 @@
          padding:10px 14px; z-index:10; pointer-events:none; }
   .pill { background:rgba(255,255,255,.9); border-radius:999px; padding:8px 16px; font-weight:800; font-size:16px;
           color:#1a5fb4; box-shadow:0 4px 14px rgba(0,40,90,.18); }
-  #btnGo { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:10;
-           padding:16px 44px; font-size:22px; font-weight:900; color:#fff; border:none; border-radius:999px;
-           background:linear-gradient(135deg,#38c172,#1fa055); box-shadow:0 6px 0 #157a3e, 0 10px 30px rgba(0,60,20,.3); cursor:pointer; }
-  #btnGo:active { transform:translateX(-50%) translateY(3px); box-shadow:0 3px 0 #157a3e; }
+  #joy { position:fixed; left:22px; bottom:22px; width:130px; height:130px; border-radius:50%;
+         background:rgba(255,255,255,.22); border:2px solid rgba(255,255,255,.5); z-index:10; touch-action:none; }
+  #joyKnob { position:absolute; left:50%; top:50%; width:56px; height:56px; border-radius:50%;
+             background:rgba(255,255,255,.9); transform:translate(-50%,-50%); box-shadow:0 4px 12px rgba(0,40,90,.35); pointer-events:none; }
 
   /* quiz */
   #quiz .card { padding:0; overflow:hidden; }
@@ -85,7 +85,7 @@
   <div class="pill" id="hudIsl">🏝 1/5</div>
   <div class="pill" id="hudTime">⏱ 0:00</div>
 </div>
-<button id="btnGo" class="hidden">YUR ▶</button>
+<div id="joy" class="hidden"><div id="joyKnob"></div></div>
 
 <div id="load" class="ov"><div>Bilim orollari yuklanmoqda…</div><div id="bar"><div id="barIn"></div></div></div>
 
@@ -298,7 +298,7 @@ const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x9fd0f2, 60, 180);
+scene.fog = new THREE.Fog(0x9fd0f2, 90, 300);
 const camera = new THREE.PerspectiveCamera(55, 1, .1, 500);
 
 scene.add(new THREE.AmbientLight(0xffffff, .45));
@@ -342,10 +342,10 @@ lm.onLoad = ()=>{
   S.phase='start';
 };
 
-/* islands */
-const GAP = 24, R = 8;
+/* islands — kengaytirilgan dunyo */
+const GAP = 46, R = 14;
 const P = []; // island centers
-const XOFF = [0, 6, -6, 5, 0];
+const XOFF = [0, 11, -11, 9, 0];
 for (let i=0;i<5;i++) P.push(new THREE.Vector3(XOFF[i], 0, -i*GAP));
 
 const matGrass = new THREE.MeshLambertMaterial({ map:TX.grass });
@@ -499,17 +499,17 @@ function makeIsland(c, i){
   scene.add(g);
 
   // billboard o'simliklar (Higgsfield art)
-  const nTree = i===4 ? 1 : 2;
+  const nTree = i===4 ? 2 : 4;
   for (let t=0;t<nTree;t++){
-    const [x,z] = safeSpot(c, R*.55, R*.8);
+    const [x,z] = safeSpot(c, R*.5, R*.8);
     billboard(TX.tree, 3.6, 5.2, x, 0, z);
   }
-  for (let t=0;t<2;t++){
-    const [x,z] = safeSpot(c, R*.45, R*.85);
+  for (let t=0;t<4;t++){
+    const [x,z] = safeSpot(c, R*.4, R*.85);
     billboard(TX.bush, 1.9, 1.5, x, 0, z);
   }
-  for (let t=0;t<3;t++){
-    const [x,z] = safeSpot(c, R*.3, R*.9);
+  for (let t=0;t<6;t++){
+    const [x,z] = safeSpot(c, R*.25, R*.9);
     billboard(TX.flower, 1.1, .8, x, 0, z);
   }
   // orol atrofida suzuvchi mayda toshlar
@@ -586,7 +586,7 @@ for (let i=0;i<4;i++){
 }
 
 /* bridges (hidden until earned) */
-const bridges = [];
+const bridges = [], bridgeSeg = [], bridgeOpen = [false,false,false,false];
 for (let i=0;i<4;i++){
   const from=P[i], to=P[i+1];
   const dir = to.clone().sub(from).setY(0);
@@ -596,7 +596,7 @@ for (let i=0;i<4;i++){
   const n = Math.ceil(len/1.1);
   const planks = [];
   for (let k=0;k<n;k++){
-    const p = new THREE.Mesh(new THREE.BoxGeometry(2.4,.25,.9), matWood);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(2.6,.25,.9), matWood);
     const pos = start.clone().add(dir.clone().multiplyScalar(k*1.1+.55));
     p.position.set(pos.x, -.12, pos.z);
     p.lookAt(to.x, -.12, to.z);
@@ -604,11 +604,37 @@ for (let i=0;i<4;i++){
     scene.add(p); planks.push(p);
   }
   bridges.push(planks);
+  bridgeSeg.push({
+    a: from.clone().add(dir.clone().multiplyScalar(R-3)),
+    b: to.clone().sub(dir.clone().multiplyScalar(R-3)),
+  });
+}
+/* yurish mumkin bo'lgan hudud: orol disklari + ochilgan ko'prik yo'laklari */
+function clampToWorld(p){
+  let best=null, bestD=1e9;
+  const consider=(x,z)=>{ const d=(p.x-x)**2+(p.z-z)**2; if(d<bestD){ bestD=d; best={x,z}; } };
+  for (let i=0;i<5;i++){
+    const c=P[i], dx=p.x-c.x, dz=p.z-c.z, d=Math.hypot(dx,dz), rr=R-.8;
+    if (d<=rr) return;
+    if (d>0) consider(c.x+dx/d*rr, c.z+dz/d*rr);
+  }
+  for (let i=0;i<4;i++){
+    if (!bridgeOpen[i]) continue;
+    const {a,b}=bridgeSeg[i];
+    const abx=b.x-a.x, abz=b.z-a.z, len2=abx*abx+abz*abz;
+    let t=((p.x-a.x)*abx+(p.z-a.z)*abz)/len2;
+    t=Math.max(0,Math.min(1,t));
+    const qx=a.x+abx*t, qz=a.z+abz*t;
+    const lx=p.x-qx, lz=p.z-qz, ld=Math.hypot(lx,lz);
+    if (ld<=1.0) return;
+    consider(qx+lx/ld*1.0, qz+lz/ld*1.0);
+  }
+  if (best){ p.x=best.x; p.z=best.z; }
 }
 
 /* player — Higgsfield image_to_3d modeli (yuklanguncha sprite) */
 const hero = new THREE.Group();
-hero.position.set(P[0].x, 0, P[0].z + 2);
+hero.position.set(P[0].x, 0, P[0].z + R - 4);
 scene.add(hero);
 let heroSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:TX.hero, transparent:true }));
 heroSprite.scale.set(3.2, 4.2, 1); heroSprite.position.y = 2.05;
@@ -735,7 +761,7 @@ function startConfetti(){
 
 /* camera */
 function camTarget(){
-  return { pos: new THREE.Vector3(hero.position.x, hero.position.y+8.5, hero.position.z+12.5),
+  return { pos: new THREE.Vector3(hero.position.x, hero.position.y+9.5, hero.position.z+14),
            look: new THREE.Vector3(hero.position.x, hero.position.y+2.5, hero.position.z-4) };
 }
 { const t=camTarget(); camera.position.copy(t.pos); }
@@ -747,19 +773,11 @@ const toast = (msg, ms=1800)=>{
   document.body.appendChild(d); setTimeout(()=>d.remove(), ms);
 };
 
-let walkQueue = [];   // points to walk through
-let walkDone = null;
+const solved = [false,false,false,false,false];
 
-function walkTo(points, done){
-  walkQueue = points.slice();
-  walkDone = done;
-  S.phase='walk';
-  $('btnGo').classList.add('hidden');
-}
-
-function arriveGate(){
+function solvedGuard(i){
   S.phase='quiz';
-  openQuiz(S.isl, ()=>{ buildBridge(S.isl); });
+  openQuiz(i, ()=>{ solved[i]=true; buildBridge(i); });
 }
 
 function buildBridge(i){
@@ -773,26 +791,13 @@ function buildBridge(i){
       p.visible=true; p.position.y=1.5; p.userData.drop=true;
       if (k===planks.length-1){
         setTimeout(()=>{
-          // walk across to next island center
-          const from=P[i], to=P[i+1];
-          const dir=to.clone().sub(from).setY(0).normalize();
-          const mid=from.clone().add(dir.clone().multiplyScalar(GAP/2));
-          S.isl=i+1;
-          $('hudIsl').textContent = `🏝 ${S.isl+1}/5`;
-          walkTo([new THREE.Vector3(mid.x,2.05,mid.z), new THREE.Vector3(to.x,2.05,to.z+1)], ()=>{
-            if (S.isl===4){ finalQuiz(); }
-            else { S.phase='idle'; $('btnGo').classList.remove('hidden'); toast(ISLANDS[S.isl].name + 'ga xush kelibsiz!'); }
-          });
-        }, 500);
+          bridgeOpen[i]=true;
+          S.phase='idle';
+          toast("Ko'prik qurildi — o'tishing mumkin! 🌉");
+        }, 400);
       }
-    }, k*130);
+    }, k*110);
   });
-}
-
-function finalQuiz(){
-  S.phase='quiz';
-  toast('Bilim minorasi seni kutmoqda!');
-  setTimeout(()=>openQuiz(4, finish), 900);
 }
 
 function finish(){
@@ -894,26 +899,57 @@ document.querySelectorAll('.grades button').forEach(b=>{
   b.onclick=()=>{ document.querySelectorAll('.grades button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); S.grade=+b.dataset.g; };
 });
 $('inpName').value = localStorage.getItem('zq_name')||'';
+const IS_TOUCH = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 $('btnStart').onclick=()=>{
   const n=$('inpName').value.trim();
   if(!n){ $('inpName').focus(); $('inpName').placeholder='Avval ismingni yoz 🙂'; return; }
   S.name=n; localStorage.setItem('zq_name',n);
   $('start').classList.add('hidden');
   $('hud').classList.remove('hidden');
+  if (IS_TOUCH) $('joy').classList.remove('hidden');
   S.t0=Date.now();
   say('welcome');
   S.phase='idle';
-  $('btnGo').classList.remove('hidden');
-  toast(`${ISLANDS[0].name}ga xush kelibsiz!`);
+  toast(IS_TOUCH ? "Joystik bilan boshqar! Savol darvozasini top 🎯" : "⬆️⬇️⬅️➡️ (yoki WASD) bilan yur! Savol darvozasini top 🎯", 3500);
 };
-$('btnGo').onclick=()=>{
-  if (S.phase!=='idle') return;
-  const i=S.isl, from=P[i];
-  const to=P[i+1];
-  const dir=to.clone().sub(from).setY(0).normalize();
-  const gpos=from.clone().add(dir.clone().multiplyScalar(R-2.6));
-  walkTo([new THREE.Vector3(gpos.x,2.05,gpos.z)], arriveGate);
-};
+
+/* --- boshqaruv: klaviatura + joystik --- */
+const keys = {};
+addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()]=true;
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+});
+addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+const joyVec = {x:0, z:0};
+{
+  const joy=$('joy'), knob=$('joyKnob');
+  let active=false;
+  const setKnob=(dx,dy)=>{ knob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; };
+  const update=(t)=>{
+    const r=joy.getBoundingClientRect();
+    let dx=t.clientX-(r.left+r.width/2), dy=t.clientY-(r.top+r.height/2);
+    const d=Math.hypot(dx,dy), m=r.width/2-14;
+    if (d>m){ dx=dx/d*m; dy=dy/d*m; }
+    setKnob(dx,dy);
+    joyVec.x=dx/m; joyVec.z=dy/m;
+  };
+  joy.addEventListener('touchstart', e=>{ active=true; update(e.touches[0]); e.preventDefault(); }, {passive:false});
+  joy.addEventListener('touchmove',  e=>{ if(active) update(e.touches[0]); e.preventDefault(); }, {passive:false});
+  const end=()=>{ active=false; joyVec.x=joyVec.z=0; setKnob(0,0); };
+  joy.addEventListener('touchend', end); joy.addEventListener('touchcancel', end);
+}
+function inputVec(){
+  let x=0, z=0;
+  if (keys['arrowup']||keys['w'])    z-=1;
+  if (keys['arrowdown']||keys['s'])  z+=1;
+  if (keys['arrowleft']||keys['a'])  x-=1;
+  if (keys['arrowright']||keys['d']) x+=1;
+  x+=joyVec.x; z+=joyVec.z;
+  const l=Math.hypot(x,z);
+  if (l>1){ x/=l; z/=l; }
+  return { x, z, l: Math.min(1,l) };
+}
 
 /* timer */
 setInterval(()=>{
@@ -935,29 +971,52 @@ let bob=0, walkVel=0, walkBlend=0;
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(), .05);
-  // walking — silliq tezlanish + burilish
-  if (S.phase==='walk' && walkQueue.length){
-    const target=walkQueue[0];
-    const p=hero.position, d=target.clone().sub(p); d.y=0;
-    const dist=d.length();
-    if (dist<.22){ walkQueue.shift(); if(!walkQueue.length){ const f=walkDone; walkDone=null; f&&f(); } }
-    else {
-      // burilish: eng qisqa yoy bo'ylab yumshoq (GTA uslubi)
-      const head = Math.atan2(d.x, d.z);
-      let diff = head - hero.rotation.y;
-      diff = ((diff + Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI;
-      hero.rotation.y += diff * Math.min(1, 9*dt);
-      // tezlanish / manzilga yaqinda sekinlashish
-      walkVel = Math.min(5.5, walkVel + 12*dt, .8 + dist*2.5);
-      d.normalize().multiplyScalar(Math.min(walkVel*dt, dist));
-      p.add(d);
-      bob += dt*(4 + walkVel*1.1);
-      walkBlend = Math.min(1, walkBlend + 5*dt);
-      if (heroSprite) heroSprite.position.y = 2.05 + Math.abs(Math.sin(bob))*.25;
-    }
+  // erkin yurish — klaviatura/joystik, silliq tezlanish + burilish
+  const iv = (S.phase==='idle') ? inputVec() : {x:0,z:0,l:0};
+  if (iv.l > .08){
+    const head = Math.atan2(iv.x, iv.z);
+    let diff = head - hero.rotation.y;
+    diff = ((diff + Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI;
+    hero.rotation.y += diff * Math.min(1, 10*dt);
+    const targetV = 6.2 * iv.l;
+    walkVel += (targetV - walkVel) * Math.min(1, 8*dt);
+    const p = hero.position;
+    p.x += iv.x/(iv.l||1) * walkVel * dt;
+    p.z += iv.z/(iv.l||1) * walkVel * dt;
+    clampToWorld(p);
+    bob += dt*(4 + walkVel*1.1);
+    walkBlend = Math.min(1, walkBlend + 5*dt);
+    if (heroSprite) heroSprite.position.y = 2.05 + Math.abs(Math.sin(bob))*.25;
   } else {
-    walkVel = 0;
+    walkVel *= Math.max(0, 1-10*dt);
     walkBlend = Math.max(0, walkBlend - 4*dt);
+  }
+  // triggerlar: darvoza, minora, yangi orolga kirish
+  if (S.phase==='idle'){
+    const hp = hero.position;
+    const i = S.isl;
+    if (i<4 && !solved[i]){
+      const g = gates[i].group.position;
+      if (Math.hypot(hp.x-g.x, hp.z-g.z) < 2.6){
+        solvedGuard(i);
+      }
+    } else if (i===4 && !solved[4]){
+      const c = P[4];
+      if (Math.hypot(hp.x-c.x, hp.z-(c.z-2)) < 5){
+        S.phase='quiz';
+        toast('Bilim minorasi seni kutmoqda!');
+        setTimeout(()=>openQuiz(4, ()=>{ solved[4]=true; finish(); }), 700);
+      }
+    }
+    const ni = S.isl+1;
+    if (ni<5 && bridgeOpen[S.isl]){
+      const c = P[ni];
+      if (Math.hypot(hp.x-c.x, hp.z-c.z) < R-1.5){
+        S.isl = ni;
+        $('hudIsl').textContent = `🏝 ${S.isl+1}/5`;
+        toast(ISLANDS[S.isl].name + 'ga xush kelibsiz!');
+      }
+    }
   }
   // skelet animatsiyasi: walk/idle kliplar aralashmasi, cheer paytida ular o'chadi
   if (mixer){
