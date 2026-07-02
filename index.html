@@ -673,12 +673,14 @@ new GLTFLoader().load('assets/final/hero.glb', gltf=>{
   })();
   if (heroSprite){ hero.remove(heroSprite); heroSprite=null; }
   mixer = new THREE.AnimationMixer(heroBody);
-  if (gltf.animations.length){
-    actCombo = mixer.clipAction(gltf.animations[0]);
-    actCombo.setLoop(THREE.LoopOnce);
-  }
-  // tashqi klip fayllari (faqat animatsiya, mesh'siz — 33/70 KB)
+  // tashqi klip fayllari (faqat animatsiya, mesh'siz — 31/53/68 KB)
   const gl2 = new GLTFLoader();
+  gl2.load('assets/final/anim_combo.glb', g=>{ // g'alaba/hujum harakati
+    if (!g.animations.length) return;
+    g.animations[0].tracks = g.animations[0].tracks.filter(tr=>!/Hips\.position/.test(tr.name));
+    actCombo = mixer.clipAction(g.animations[0]);
+    actCombo.setLoop(THREE.LoopOnce);
+  });
   gl2.load('assets/final/anim_walk.glb', g=>{
     if (!g.animations.length) return;
     // root-motion siljishini olib tashlaymiz (joyida yurish)
