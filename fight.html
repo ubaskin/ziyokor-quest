@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ziyokor Quest — Jang maydoni (prototip)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:#87c5f0; }
+  #c { position:fixed; inset:0; display:block; }
+
+  .ov { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:20; }
+  .card { background:rgba(255,255,255,.96); border-radius:24px; padding:22px; width:min(440px,92vw);
+          box-shadow:0 20px 60px rgba(0,40,90,.35); text-align:center; }
+  .card h1 { font-size:26px; color:#1a5fb4; }
+  .card p.sub { color:#555; margin:6px 0 16px; font-size:14px; }
+  .grades { display:flex; gap:10px; margin-bottom:16px; }
+  .grades button { flex:1; padding:14px 0; font-size:18px; font-weight:700; border:2px solid #cfe3f7; background:#fff; border-radius:14px; color:#1a5fb4; cursor:pointer; }
+  .grades button.sel { background:#1a5fb4; color:#fff; border-color:#1a5fb4; }
+  .big { width:100%; padding:16px; font-size:20px; font-weight:800; color:#fff; border:none; border-radius:16px;
+         background:linear-gradient(135deg,#ff9a3d,#ff6a3d); cursor:pointer; box-shadow:0 6px 0 #d9541f; }
+  .big:active { transform:translateY(3px); box-shadow:0 3px 0 #d9541f; }
+
+  /* HUD */
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-start;
+         padding:10px 14px; z-index:10; pointer-events:none; }
+  .pill { background:rgba(255,255,255,.9); border-radius:999px; padding:8px 16px; font-weight:800; font-size:16px;
+          color:#1a5fb4; box-shadow:0 4px 14px rgba(0,40,90,.18); }
+  #swordPill.glow { background:#ffe9a8; color:#b26a00; box-shadow:0 0 18px #ffd43b; }
+
+  /* dushman HP */
+  #ebar { position:fixed; transform:translate(-50%,-100%); width:110px; height:12px; background:rgba(0,0,0,.35);
+          border-radius:99px; z-index:9; overflow:hidden; border:2px solid rgba(255,255,255,.6); }
+  #ebarIn { height:100%; width:100%; background:linear-gradient(90deg,#b06cf5,#7d3fd4); border-radius:99px; transition:width .25s; }
+
+  #joy { position:fixed; left:22px; bottom:22px; width:130px; height:130px; border-radius:50%;
+         background:rgba(255,255,255,.22); border:2px solid rgba(255,255,255,.5); z-index:10; touch-action:none; }
+  #joyKnob { position:absolute; left:50%; top:50%; width:56px; height:56px; border-radius:50%;
+             background:rgba(255,255,255,.9); transform:translate(-50%,-50%); box-shadow:0 4px 12px rgba(0,40,90,.35); pointer-events:none; }
+  #btnAtk { position:fixed; right:26px; bottom:30px; width:96px; height:96px; border-radius:50%; border:none; z-index:10;
+            background:radial-gradient(circle at 35% 30%, #ffd08a, #ff6a3d); font-size:44px; box-shadow:0 8px 0 #d9541f, 0 12px 26px rgba(0,0,0,.3);
+            touch-action:manipulation; }
+  #btnAtk:active { transform:translateY(4px); box-shadow:0 4px 0 #d9541f; }
+
+  /* quiz */
+  #quiz .card h2 { color:#1a5fb4; font-size:18px; margin-bottom:8px; }
+  #qText { font-size:30px; font-weight:800; color:#223; margin:10px 0 16px; }
+  #qOpts { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #qOpts button { padding:16px 8px; font-size:22px; font-weight:800; border:2px solid #cfe3f7; background:#f4f9ff;
+                  border-radius:14px; color:#1a5fb4; cursor:pointer; }
+  #qOpts button.ok { background:#38c172; color:#fff; }
+  #qOpts button.bad { background:#e05252; color:#fff; opacity:.7; }
+
+  .toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:rgba(26,95,180,.94); color:#fff;
+           padding:12px 22px; border-radius:999px; font-weight:800; font-size:17px; z-index:30; box-shadow:0 8px 24px rgba(0,40,90,.35);
+           animation:pop .3s ease; white-space:nowrap; }
+  @keyframes pop { from { transform:translateX(-50%) scale(.6); opacity:0; } }
+  #flash { position:fixed; inset:0; background:#ff3b3b; opacity:0; pointer-events:none; z-index:15; transition:opacity .1s; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="flash"></div>
+
+<div id="hud" class="hidden">
+  <div class="pill" id="hpPill">❤❤❤❤❤</div>
+  <div class="pill" id="swordPill">⚔️ 3</div>
+</div>
+<div id="ebar" class="hidden"><div id="ebarIn"></div></div>
+<div id="joy" class="hidden"><div id="joyKnob"></div></div>
+<button id="btnAtk" class="hidden">⚔️</button>
+
+<div id="start" class="ov">
+  <div class="card">
+    <h1>⚔️ JANG MAYDONI</h1>
+    <p class="sub">Prototip: Kristall Ritsar × Tuman Soyasi.<br>
+       Boshqaruv: strelka/WASD — yurish, SPACE yoki ⚔️ — zarba.<br>
+       Qilich quvvati tugasa — misol yechib to'ldirasan!</p>
+    <div class="grades">
+      <button data-g="2">2-sinf</button>
+      <button data-g="3" class="sel">3-sinf</button>
+      <button data-g="4">4-sinf</button>
+    </div>
+    <button class="big" id="btnStart">JANGGA! ⚔️</button>
+  </div>
+</div>
+
+<div id="quiz" class="ov hidden">
+  <div class="card">
+    <h2>🗡 Qilichni quvvatlantir!</h2>
+    <div id="qText"></div>
+    <div id="qOpts"></div>
+  </div>
+</div>
+
+<div id="end" class="ov hidden">
+  <div class="card">
+    <h1 id="endTitle"></h1>
+    <p class="sub" id="endSub"></p>
+    <button class="big" onclick="location.reload()">YANA JANG 🔄</button>
+  </div>
+</div>
+
+<script type="importmap">{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+const $ = id=>document.getElementById(id);
+const toast = (msg, ms=1600)=>{ const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
+  document.body.appendChild(d); setTimeout(()=>d.remove(), ms); };
+
+/* ================= SCENE ================= */
+const renderer = new THREE.WebGLRenderer({ canvas:$('c'), antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd8f5);
+scene.fog = new THREE.Fog(0x9fd8f5, 30, 70);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, .1, 200);
+addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa66, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+sun.position.set(6, 12, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-15; sun.shadow.camera.right=15; sun.shadow.camera.top=15; sun.shadow.camera.bottom=-15;
+scene.add(sun);
+
+/* arena */
+const texLoader = new THREE.TextureLoader();
+const grassTex = texLoader.load('assets/final/grass.jpg'); grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping; grassTex.repeat.set(6,6); grassTex.colorSpace=THREE.SRGBColorSpace;
+const ARENA_R = 11;
+const ground = new THREE.Mesh(new THREE.CircleGeometry(ARENA_R, 56), new THREE.MeshStandardMaterial({ map:grassTex }));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+const stoneTex = texLoader.load('assets/final/stone.jpg'); stoneTex.colorSpace=THREE.SRGBColorSpace;
+const ring = new THREE.Mesh(new THREE.TorusGeometry(ARENA_R, .35, 10, 64), new THREE.MeshStandardMaterial({ map:stoneTex }));
+ring.rotation.x = Math.PI/2; ring.position.y=.15; scene.add(ring);
+// atrof: pastdagi "bulut" halqa
+const cloudMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:.85 });
+for (let i=0;i<10;i++){
+  const a = i/10*Math.PI*2;
+  const puff = new THREE.Mesh(new THREE.SphereGeometry(2.2+Math.sin(i*7)*.6, 12, 10), cloudMat);
+  puff.position.set(Math.cos(a)*(ARENA_R+3.5), -1.2, Math.sin(a)*(ARENA_R+3.5));
+  puff.scale.y=.55; scene.add(puff);
+}
+
+/* ================= MODELLAR ================= */
+const loader = new GLTFLoader();
+const load = url=>new Promise((res,rej)=>loader.load(url,res,undefined,rej));
+
+const crystalMat = new THREE.MeshPhysicalMaterial({ color:0x8fd6ff, metalness:.15, roughness:.35,
+  clearcoat:.6, clearcoatRoughness:.3, sheen:.5, sheenColor:new THREE.Color(0xbfe8ff) });
+const shadowMat = new THREE.MeshStandardMaterial({ color:0x4a3570, metalness:.2, roughness:.6,
+  transparent:true, opacity:.92, emissive:0x1a0b33, emissiveIntensity:.6 });
+
+function fitOnGround(root, targetH){ // suyaklar bo'yicha masshtab
+  root.updateWorldMatrix(true,true);
+  const v = new THREE.Vector3(); let minY=1e9, maxY=-1e9;
+  root.traverse(o=>{ if(o.isBone){ o.getWorldPosition(v); minY=Math.min(minY,v.y); maxY=Math.max(maxY,v.y);} });
+  const h = maxY-minY;
+  if (h>.01) root.scale.multiplyScalar(targetH/h);
+  root.updateWorldMatrix(true,true);
+  let m2=1e9;
+  root.traverse(o=>{ if(o.isBone){ o.getWorldPosition(v); m2=Math.min(m2,v.y);} });
+  root.position.y += -m2 - .04;
+}
+
+const gIdle = await load('assets/final/hero3_idle.glb');
+const gWalk = await load('assets/final/hero3_walk.glb');
+const gAtk  = await load('assets/final/hero3_attack.glb');
+const stripRoot = c=>{ c.tracks = c.tracks.filter(tr=>!/Hips\.position/.test(tr.name)); return c; };
+const CLIP = { idle:gIdle.animations[0], walk:stripRoot(gWalk.animations[0]), attack:stripRoot(gAtk.animations[0]) };
+
+function makeFighter(srcScene, mat, targetH){
+  const grp = new THREE.Group();
+  const body = SkeletonUtils.clone(srcScene);
+  body.traverse(o=>{ if(o.isMesh){ if(!o.material?.map) o.material = mat; o.castShadow=true; o.frustumCulled=false; } });
+  fitOnGround(body, targetH);
+  grp.add(body);
+  const mixer = new THREE.AnimationMixer(body);
+  const act = {};
+  for (const k in CLIP){ act[k]=mixer.clipAction(CLIP[k]); act[k].play(); act[k].setEffectiveWeight(k==='idle'?1:0); }
+  act.attack.setLoop(THREE.LoopOnce); act.attack.clampWhenFinished=false; act.attack.setEffectiveWeight(0);
+  scene.add(grp);
+  return { grp, body, mixer, act, walkW:0 };
+}
+
+const hero  = makeFighter(gIdle.scene, crystalMat, 2.0);
+const enemy = makeFighter(gIdle.scene, shadowMat, 2.3);
+hero.grp.position.set(0,0,4);
+enemy.grp.position.set(0,0,-4);
+
+/* dushman ko'zlari + tuman */
+{
+  let head=null; enemy.body.traverse(o=>{ if(o.isBone && /Head/i.test(o.name)) head=head||o; });
+  if (head){
+    const eyeMat=new THREE.MeshBasicMaterial({ color:0xff4b4b });
+    for (const sx of [-1,1]){
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(.035,8,8), eyeMat);
+      eye.position.set(sx*.07,.09,.14); head.add(eye);
+    }
+  }
+  const N=60, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-.5)*2; pos[i*3+1]=Math.random()*1.6; pos[i*3+2]=(Math.random()-.5)*2; }
+  const pg=new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const fogPts=new THREE.Points(pg, new THREE.PointsMaterial({ color:0x6a4fa0, size:.16, transparent:true, opacity:.55 }));
+  enemy.grp.add(fogPts); enemy.fog=fogPts;
+}
+
+/* ================= STATE ================= */
+const S = {
+  phase:'start', grade:3,
+  heroHP:5, enemyHP:8, sword:3, buff:false,
+  heroBusy:0, enemyBusy:0, enemyTele:0, enemyNext:2.5,
+  hitDone:false, ehitDone:false, inv:0,
+};
+const HERO_SPEED = 4.2, ATK_RANGE = 2.4, E_ATK_RANGE = 2.6;
+
+function hpUI(){
+  $('hpPill').textContent = '❤'.repeat(S.heroHP) + '🖤'.repeat(Math.max(0,5-S.heroHP));
+  $('swordPill').textContent = (S.buff?'🌟 ':'⚔️ ') + S.sword;
+  $('swordPill').classList.toggle('glow', S.buff);
+  $('ebarIn').style.width = Math.max(0, S.enemyHP/8*100) + '%';
+}
+
+/* ================= BOSHQARUV ================= */
+const keys = {};
+addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='Space'){ e.preventDefault(); tryAttack(); } });
+addEventListener('keyup',   e=>{ keys[e.code]=false; });
+$('btnAtk').addEventListener('pointerdown', e=>{ e.preventDefault(); tryAttack(); });
+
+const joy = { active:false, dx:0, dy:0 };
+{
+  const el=$('joy'), knob=$('joyKnob'); let cx=0, cy=0;
+  const set=(x,y)=>{ const dx=x-cx, dy=y-cy, d=Math.hypot(dx,dy), m=Math.min(d,48), a=Math.atan2(dy,dx);
+    joy.dx=Math.cos(a)*m/48; joy.dy=Math.sin(a)*m/48;
+    knob.style.transform=`translate(calc(-50% + ${Math.cos(a)*m}px), calc(-50% + ${Math.sin(a)*m}px))`; };
+  el.addEventListener('pointerdown', e=>{ const r=el.getBoundingClientRect(); cx=r.left+r.width/2; cy=r.top+r.height/2;
+    joy.active=true; el.setPointerCapture(e.pointerId); set(e.clientX,e.clientY); });
+  el.addEventListener('pointermove', e=>{ if(joy.active) set(e.clientX,e.clientY); });
+  const end=()=>{ joy.active=false; joy.dx=joy.dy=0; knob.style.transform='translate(-50%,-50%)'; };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+
+/* ================= JANG ================= */
+function faceTo(f, target, dt, speed=10){
+  const d = new THREE.Vector3().subVectors(target, f.grp.position); d.y=0;
+  if (d.lengthSq()<.0001) return;
+  const want = Math.atan2(d.x, d.z);
+  let cur = f.grp.rotation.y;
+  let diff = ((want-cur+Math.PI*3)%(Math.PI*2))-Math.PI;
+  f.grp.rotation.y = cur + THREE.MathUtils.clamp(diff, -speed*dt, speed*dt);
+}
+
+function tryAttack(){
+  if (S.phase!=='fight' || S.heroBusy>0) return;
+  if (S.sword<=0){ openQuiz(); return; }
+  S.sword--; hpUI();
+  S.heroBusy = CLIP.attack.duration*.9;
+  S.hitDone = false;
+  hero.act.attack.reset().setEffectiveWeight(1).play();
+}
+
+function heroHit(){
+  const d = hero.grp.position.distanceTo(enemy.grp.position);
+  if (d < ATK_RANGE + .4){
+    const dmg = S.buff ? 2 : 1;
+    S.buff = false;
+    S.enemyHP -= dmg; hpUI();
+    toast(dmg>1 ? '🌟 NUR ZARBASI! −2' : '⚔️ Zarba! −1', 900);
+    enemy.grp.position.add(new THREE.Vector3().subVectors(enemy.grp.position, hero.grp.position).setY(0).normalize().multiplyScalar(.7));
+    if (S.enemyHP<=0) win();
+  } else toast('Juda uzoq — yaqinlash!', 900);
+  if (S.sword===0 && S.enemyHP>0) setTimeout(()=>{ if(S.phase==='fight') openQuiz(); }, 600);
+}
+
+function enemyHit(){
+  const d = hero.grp.position.distanceTo(enemy.grp.position);
+  if (d < E_ATK_RANGE && S.inv<=0){
+    S.heroHP--; S.inv=.9; hpUI();
+    $('flash').style.opacity=.35; setTimeout(()=>$('flash').style.opacity=0, 120);
+    if (S.heroHP<=0) lose();
+  }
+}
+
+function win(){
+  S.phase='end';
+  new Audio('audio/ajoyib.mp3').play().catch(()=>{});
+  $('endTitle').textContent='🎉 G\'ALABA!';
+  $('endSub').textContent='Tuman Soyasi tarqaldi — orol yorishdi!';
+  setTimeout(()=>$('end').classList.remove('hidden'), 800);
+}
+function lose(){
+  S.phase='end';
+  $('endTitle').textContent='💨 Tuman g\'olib keldi…';
+  $('endSub').textContent='Xato — hali o\'rganilmagan dars. Yana urin!';
+  setTimeout(()=>$('end').classList.remove('hidden'), 600);
+}
+
+/* ================= MISOL (qilich quvvati) ================= */
+const rnd = n=>Math.floor(Math.random()*n);
+function makeQ(g){
+  let a,b,txt,ans;
+  if (g===2){ if (Math.random()<.5){ a=rnd(50)+10; b=rnd(40)+5; txt=`${a} + ${b}`; ans=a+b; }
+              else { a=rnd(60)+30; b=rnd(a-5)+3; txt=`${a} − ${b}`; ans=a-b; } }
+  else if (g===3){ const r=Math.random();
+    if (r<.4){ a=rnd(8)+2; b=rnd(8)+2; txt=`${a} × ${b}`; ans=a*b; }
+    else if (r<.7){ b=rnd(8)+2; ans=rnd(8)+2; a=b*ans; txt=`${a} : ${b}`; }
+    else { a=rnd(400)+100; b=rnd(300)+50; txt=`${a} + ${b}`; ans=a+b; } }
+  else { const r=Math.random();
+    if (r<.5){ a=rnd(90)+10; b=rnd(9)+2; txt=`${a} × ${b}`; ans=a*b; }
+    else { a=rnd(9)+2; b=rnd(9)+2; const c=rnd(20)+5; txt=`${a} × ${b} + ${c}`; ans=a*b+c; } }
+  const opts=new Set([ans]);
+  while (opts.size<4) opts.add(Math.max(0, ans + (rnd(2)?1:-1)*(rnd(10)+1)));
+  return { txt, ans, opts:[...opts].sort(()=>Math.random()-.5) };
+}
+
+function openQuiz(){
+  if (S.phase!=='fight') return;
+  S.phase='quiz';
+  const q = makeQ(S.grade);
+  $('qText').textContent = q.txt + ' = ?';
+  const box=$('qOpts'); box.innerHTML='';
+  for (const o of q.opts){
+    const b=document.createElement('button'); b.textContent=o;
+    b.onclick=()=>{
+      if (o===q.ans){
+        b.classList.add('ok');
+        S.sword=3; S.buff=true; hpUI();
+        toast('🌟 Qilich quvvatlandi! Keyingi zarba 2 barobar!');
+        setTimeout(()=>{ $('quiz').classList.add('hidden'); S.phase='fight'; }, 500);
+      } else {
+        b.classList.add('bad'); b.disabled=true;
+        toast('Yana o\'ylab ko\'r 🤔', 1000);
+      }
+    };
+    box.appendChild(b);
+  }
+  $('quiz').classList.remove('hidden');
+}
+
+/* ================= LOOP ================= */
+const clock = new THREE.Clock();
+function setWalk(f, w, dt){
+  f.walkW += THREE.MathUtils.clamp(w - f.walkW, -dt*6, dt*6);
+  f.act.walk.setEffectiveWeight(f.walkW);
+  f.act.idle.setEffectiveWeight(Math.max(0, 1-f.walkW - (f===hero&&S.heroBusy>0?1:0) - (f===enemy&&S.enemyBusy>0?1:0)));
+}
+
+function tick(){
+  requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), .05);
+  const t = clock.elapsedTime;
+  if (S.phase==='fight'){
+    S.inv = Math.max(0, S.inv-dt);
+    /* --- qahramon --- */
+    let mx = (keys.ArrowRight||keys.KeyD?1:0) - (keys.ArrowLeft||keys.KeyA?1:0) + joy.dx;
+    let mz = (keys.ArrowDown||keys.KeyS?1:0) - (keys.ArrowUp||keys.KeyW?1:0) + joy.dy;
+    const ml = Math.hypot(mx,mz);
+    if (S.heroBusy>0){
+      S.heroBusy -= dt;
+      faceTo(hero, enemy.grp.position, dt);
+      if (!S.hitDone && hero.act.attack.time > CLIP.attack.duration*.45){ S.hitDone=true; heroHit(); }
+      if (S.heroBusy<=0) hero.act.attack.setEffectiveWeight(0);
+      setWalk(hero, 0, dt);
+    } else if (ml>.15){
+      const k = Math.min(ml,1);
+      hero.grp.position.x += mx/ml*HERO_SPEED*k*dt;
+      hero.grp.position.z += mz/ml*HERO_SPEED*k*dt;
+      const r = Math.hypot(hero.grp.position.x, hero.grp.position.z);
+      if (r > ARENA_R-1){ hero.grp.position.multiplyScalar((ARENA_R-1)/r); hero.grp.position.y=0; }
+      faceTo(hero, hero.grp.position.clone().add(new THREE.Vector3(mx,0,mz)), dt);
+      setWalk(hero, k, dt);
+    } else setWalk(hero, 0, dt);
+
+    /* --- dushman AI --- */
+    const dist = enemy.grp.position.distanceTo(hero.grp.position);
+    if (S.enemyBusy>0){
+      S.enemyBusy -= dt;
+      if (!S.ehitDone && enemy.act.attack.time > CLIP.attack.duration*.45){ S.ehitDone=true; enemyHit(); }
+      if (S.enemyBusy<=0) enemy.act.attack.setEffectiveWeight(0);
+      setWalk(enemy, 0, dt);
+    } else if (S.enemyTele>0){
+      S.enemyTele -= dt;
+      enemy.body.traverse(o=>{ if(o.isMesh && o.material===shadowMat) shadowMat.emissive.setHex(Math.sin(t*20)>0?0x881111:0x1a0b33); });
+      faceTo(enemy, hero.grp.position, dt);
+      setWalk(enemy, 0, dt);
+      if (S.enemyTele<=0){
+        shadowMat.emissive.setHex(0x1a0b33);
+        S.enemyBusy = CLIP.attack.duration*.9; S.ehitDone=false;
+        enemy.act.attack.reset().setEffectiveWeight(1).play();
+      }
+    } else {
+      S.enemyNext -= dt;
+      if (dist > E_ATK_RANGE-.5){
+        const dir = new THREE.Vector3().subVectors(hero.grp.position, enemy.grp.position).setY(0).normalize();
+        enemy.grp.position.addScaledVector(dir, 2.1*dt);
+        faceTo(enemy, hero.grp.position, dt);
+        setWalk(enemy, 1, dt);
+      } else {
+        faceTo(enemy, hero.grp.position, dt);
+        setWalk(enemy, 0, dt);
+        if (S.enemyNext<=0){ S.enemyTele=.55; S.enemyNext = 2 + Math.random()*1.5; }
+      }
+    }
+    if (enemy.fog) enemy.fog.rotation.y = t*.4;
+
+    /* dushman HP bar proyeksiyasi */
+    const p = enemy.grp.position.clone(); p.y += 3;
+    p.project(camera);
+    $('ebar').style.left = ((p.x+1)/2*innerWidth)+'px';
+    $('ebar').style.top  = ((-p.y+1)/2*innerHeight)+'px';
+  }
+  hero.mixer.update(dt);
+  enemy.mixer.update(dt);
+
+  /* kamera qahramon ortidan */
+  const cp = new THREE.Vector3(hero.grp.position.x, 8.5, hero.grp.position.z+12);
+  camera.position.lerp(cp, 1-Math.exp(-4*dt));
+  camera.lookAt(hero.grp.position.x, 1.6, hero.grp.position.z-2);
+  renderer.render(scene, camera);
+}
+tick();
+
+/* ================= START ================= */
+document.querySelectorAll('.grades button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.grades button').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); S.grade=+b.dataset.g;
+});
+$('btnStart').onclick=()=>{
+  $('start').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  $('ebar').classList.remove('hidden');
+  if ('ontouchstart' in window){ $('joy').classList.remove('hidden'); }
+  $('btnAtk').classList.remove('hidden');
+  S.phase='fight'; hpUI();
+  toast('Tuman Soyasini yengib, orolni tozala! ⚔️', 2200);
+};
+</script>
+</body>
+</html>
