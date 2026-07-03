@@ -1,0 +1,31 @@
+=== START Thu Jul  2 22:51:32 +05 2026 ===
+[1] hero textured image_to_3d...
+hero textured url: https://d3u0tzju9qaucj.cloudfront.net/7d051b5a-7bfe-49fe-a484-24e7b3a9458a/704e6b13-b041-47e3-956f-f8e939ce4c3d.glb
+OK hero_tex.glb (10322024 b)
+[prop] sword...
+[prop] shield...
+[anim] idle (action_id=0)...
+[anim] walk (action_id=1)...
+[anim] attack (action_id=4)...
+OK hero_attack.glb
+OK hero_walk.glb
+OK hero_idle.glb
+OK sword.glb
+OK shield.glb
+=== DONE Thu Jul  2 22:59:11 +05 2026 ===
+total 116808
+drwx------@ 15 ubaskin  staff       480 Jul  2 22:59 .
+drwx------@  5 ubaskin  staff       160 Jul  2 22:53 ..
+-rw-------@  1 ubaskin  staff       579 Jul  2 22:55 anim_attack_job.json
+-rw-------@  1 ubaskin  staff       579 Jul  2 22:55 anim_idle_job.json
+-rw-------@  1 ubaskin  staff       579 Jul  2 22:55 anim_walk_job.json
+-rw-------@  1 ubaskin  staff   9709516 Jul  2 22:55 hero_attack.glb
+-rw-------@  1 ubaskin  staff   9723956 Jul  2 22:55 hero_idle.glb
+-rw-------@  1 ubaskin  staff  10322024 Jul  2 22:54 hero_tex.glb
+-rw-------@  1 ubaskin  staff       829 Jul  2 22:53 hero_tex_job.json
+-rw-------@  1 ubaskin  staff   9687080 Jul  2 22:55 hero_walk.glb
+-rw-------@  1 ubaskin  staff       484 Jul  2 22:59 pipeline.log
+-rw-------@  1 ubaskin  staff  10435856 Jul  2 22:59 shield.glb
+-rw-------@  1 ubaskin  staff       803 Jul  2 22:59 shield_job.json
+-rw-------@  1 ubaskin  staff   5206532 Jul  2 22:55 sword.glb
+-rw-------@  1 ubaskin  staff       812 Jul  2 22:55 sword_job.json

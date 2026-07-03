@@ -1,0 +1,26 @@
+[
+  {
+    "id": "502fb08d-394f-4c27-bb59-60acaeb246b7",
+    "status": "completed",
+    "display_name": "Image to 3D",
+    "job_set_type": "image_to_3d",
+    "result_url": "https://d3u0tzju9qaucj.cloudfront.net/7d051b5a-7bfe-49fe-a484-24e7b3a9458a/46020b52-6a94-41e3-a204-4a2b26a0a680.glb",
+    "created_at": 1783014852.7504,
+    "params": {
+      "medias": [
+        {
+          "data": {
+            "id": "9e7a42a9-5092-4328-85f3-df11449a72f8",
+            "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3F1T1UQF9X9Pep4IDfVTFO0rMSc/9e7a42a9-5092-4328-85f3-df11449a72f8.png",
+            "type": "media_input"
+          },
+          "role": "image"
+        }
+      ],
+      "should_texture": true,
+      "enable_rigging": false,
+      "enable_animation": false,
+      "folder_id": null
+    }
+  }
+]

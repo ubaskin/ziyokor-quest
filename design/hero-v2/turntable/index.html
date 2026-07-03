@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html,body{margin:0;padding:0;overflow:hidden;background:#87CEEB}</style>
+<script type="importmap">{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const W = 720, H = 720;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd8f5);
+const camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 100);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa66, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(3, 6, 4);
+scene.add(sun);
+
+// ground disc
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(3, 48),
+  new THREE.MeshStandardMaterial({ color: 0x7ec850 })
+);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+const loader = new GLTFLoader();
+const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+
+const base = await load('hero_idle.glb'); // rigli model (hero_v2.glb rigsiz xom mesh)
+const model = base.scene;
+// Higgsfield GLB teksturasiz — preview uchun kristall-ritsar materiali
+const crystalMat = new THREE.MeshPhysicalMaterial({
+  color: 0x8fd6ff, metalness: 0.15, roughness: 0.35,
+  clearcoat: 0.6, clearcoatRoughness: 0.3,
+  sheen: 0.5, sheenColor: new THREE.Color(0xbfe8ff)
+});
+model.traverse(o => { if (o.isMesh) { o.material = crystalMat; o.frustumCulled = false; } });
+scene.add(model);
+
+// skinned mesh'da Box3 aldaydi — bo'yni SUYAKLAR bo'yicha o'lchaymiz
+model.updateWorldMatrix(true, true);
+const v = new THREE.Vector3();
+let minY = 1e9, maxY = -1e9;
+model.traverse(o => {
+  if (o.isBone) { o.getWorldPosition(v); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y); }
+});
+let h = maxY - minY;
+if (!(h > 0.01)) { const bb = new THREE.Box3().setFromObject(model); h = bb.getSize(new THREE.Vector3()).y; minY = bb.min.y; }
+// normallashtiramiz: bo'yi 2 birlik, oyoq yerda
+const target = 2.0;
+model.scale.setScalar(target / h);
+model.updateWorldMatrix(true, true);
+let minY2 = 1e9;
+model.traverse(o => { if (o.isBone) { o.getWorldPosition(v); minY2 = Math.min(minY2, v.y); } });
+model.position.y -= minY2;
+h = target;
+const camDist = h * 2.6;
+const camH = h * 0.55;
+const lookAt = new THREE.Vector3(0, h*0.52, 0);
+
+const mixer = new THREE.AnimationMixer(model);
+const clips = { idle: base.animations[0] };
+for (const name of ['walk','attack']) {
+  const g = await load(`hero_${name}.glb`);
+  const clip = g.animations[0];
+  // joyida yurish — root siljish trekini olib tashlaymiz
+  clip.tracks = clip.tracks.filter(tr => !/Hips\.position/.test(tr.name));
+  clips[name] = clip;
+}
+
+let action = null;
+function play(name) {
+  if (action) action.stop();
+  action = mixer.clipAction(clips[name]);
+  action.reset().play();
+}
+
+// timeline: 0-3s idle, 3-6s walk, 6-9s attack; camera orbits 360° over 9s
+const FPS = 30, DUR = 9;
+let t = 0;
+play('idle');
+let phase = 'idle';
+
+window.step = () => {
+  t += 1/FPS;
+  if (t >= 3 && phase === 'idle') { phase = 'walk'; play('walk'); }
+  if (t >= 6 && phase === 'walk') { phase = 'attack'; play('attack'); }
+  mixer.update(1/FPS);
+  const ang = (t / DUR) * Math.PI * 2 + Math.PI * 0.15;
+  camera.position.set(Math.sin(ang)*camDist, camH + h*0.15, Math.cos(ang)*camDist);
+  camera.lookAt(lookAt);
+  renderer.render(scene, camera);
+  return t >= DUR;
+};
+// first frame
+mixer.update(0);
+camera.position.set(Math.sin(Math.PI*0.15)*camDist, camH + h*0.15, Math.cos(Math.PI*0.15)*camDist);
+camera.lookAt(lookAt);
+renderer.render(scene, camera);
+window.ready = true;
+</script>
+</body>
+</html>

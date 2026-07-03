@@ -200,7 +200,7 @@ hero.grp.position.set(0,0,4);
 enemy.grp.position.set(0,0,-4);
 
 /* qilich + kitob-qalqon (qahramon qo'lida) */
-async function attachProp(url, root, boneName, worldLen, rot, off){
+async function attachProp(url, root, boneName, worldLen, rot, off, dir){
   const g = await load(url).catch(()=>null);
   if (!g) return null;
   let bone=null; root.traverse(o=>{ if(o.isBone && o.name===boneName) bone=bone||o; });
@@ -213,15 +213,20 @@ async function attachProp(url, root, boneName, worldLen, rot, off){
   const k = worldLen/len/(ws.x||1);
   const grp = new THREE.Group();
   grp.scale.setScalar(k);
-  grp.rotation.set(rot[0], rot[1], rot[2]);
+  if (dir){ // tig' (model -Y) ni berilgan lokal yo'nalishga burish
+    const d = new THREE.Vector3(dir[0],dir[1],dir[2]).normalize();
+    grp.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0), d);
+  } else {
+    grp.rotation.set(rot[0], rot[1], rot[2]);
+  }
   grp.position.set(off[0]/(ws.x||1), off[1]/(ws.x||1), off[2]/(ws.x||1));
   grp.add(prop);
   bone.add(grp);
   return grp;
 }
-// qilich: tig'i -Y ga qaragan model; qo'l panjasidan tashqariga yo'naltiramiz
-const swordGrp  = await attachProp('assets/final/prop_sword.glb',  hero.body, 'RightHand', 1.5, [Math.PI/2, 0, 0], [0, .05, .04]);
-const shieldGrp = await attachProp('assets/final/prop_shield.glb', hero.body, 'LeftForeArm', .9, [0, 0, Math.PI/2], [0, .06, 0]);
+// qilich: tig'i qo'l panjasidan oldinga/tepaga (sdir bilan tekshirilgan qiymat)
+const swordGrp  = await attachProp('assets/final/prop_sword.glb',  hero.body, 'RightHand', 1.5, null, [0, .05, .04], [-0.68,-0.13,0.72]);
+const shieldGrp = await attachProp('assets/final/prop_shield.glb', hero.body, 'LeftForeArm', .72, [0, 0, -Math.PI/2], [0.04, .1, 0]);
 
 /* dushman ko'zlari + tuman */
 {
